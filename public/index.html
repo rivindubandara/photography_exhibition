@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Staff Photo Exhibition – Vote</title>
+<title>Thresholds Exhibition – Vote</title>
 <meta name="theme-color" content="#3d3935">
 <style>
 @font-face{font-family:"Basis Grotesque";src:url(assets/fonts/BasisGrotesquePro-Regular.otf) format("opentype");font-weight:400;font-display:swap}
@@ -13,62 +13,102 @@
 :root{--clay:#b06645;--espresso:#3d3935;--taupe:#9c8f7d;--sand:#d4c9bf;--olive:#6a6a59;--sage:#cecea8;--ink:#2b2a27;--grey:#939596;--cream:#f0ede8;--white:#fff;
 --sans:"Basis Grotesque",Arial,Helvetica,sans-serif;--serif:"Gascogne Serial",Georgia,serif}
 *{box-sizing:border-box;margin:0}
-body{background:var(--cream);color:var(--espresso);font:400 16px/1.4 var(--sans);-webkit-font-smoothing:antialiased;padding-bottom:96px}
-button{font:inherit;color:inherit;cursor:pointer}
-header{background:var(--espresso);color:var(--cream);position:relative;overflow:hidden;padding:28px 20px 40px}
-header .arc{position:absolute;right:-120px;top:-120px;width:360px;height:360px;border-radius:0 0 0 100%;border:1px solid rgba(212,201,191,.25);border-top:0;border-right:0}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{background:var(--cream);color:var(--espresso);font:400 16px/1.4 var(--sans);-webkit-font-smoothing:antialiased;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px));overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+header{background:var(--espresso);color:var(--cream);position:relative;overflow:hidden;padding:28px 20px 40px;padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+header .arc{position:absolute;right:-120px;top:-120px;width:360px;height:360px;border-radius:0 0 0 100%;border:1px solid rgba(212,201,191,.25);border-top:0;border-right:0;pointer-events:none}
 header .arc.b{width:240px;height:240px;right:-60px;top:-60px}
 header img{height:40px;display:block;margin-bottom:56px;position:relative}
-header h1{font:200 clamp(40px,10vw,84px)/1 var(--serif);letter-spacing:0;position:relative;max-width:12em}
+header h1{font:200 clamp(36px,9vw,84px)/1.05 var(--serif);letter-spacing:0;position:relative;max-width:12em}
 header h1 em{font-style:italic;color:var(--sand)}
 header p{margin-top:18px;max-width:34em;color:var(--sand);position:relative}
-.wrap{max-width:1200px;margin:0 auto;padding:0 16px}
-.bar{position:sticky;top:0;z-index:5;background:var(--cream);border-bottom:1px solid var(--sand)}
-.bar .wrap{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px}
-.who{font-size:14px;color:var(--olive)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-left)) 0 max(16px,env(safe-area-inset-right))}
+.bar{position:sticky;top:0;z-index:5;background:var(--cream);border-bottom:1px solid var(--sand);padding-top:env(safe-area-inset-top,0)}
+.bar .wrap{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;min-height:48px}
+.who{font-size:14px;color:var(--olive);min-width:0;flex:1}
 .who b{font-weight:500;color:var(--espresso)}
-.link{background:none;border:0;border-bottom:1px solid currentColor;padding:0;font-size:14px;color:var(--clay)}
-.status{font-size:14px;color:var(--olive)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;margin-top:24px;border-top:1px solid var(--sand);border-left:1px solid var(--sand)}
-.card{border-right:1px solid var(--sand);border-bottom:1px solid var(--sand);padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--cream)}
-.card.picked{background:var(--white)}
-.ph{aspect-ratio:4/3;background:var(--sand);overflow:hidden;cursor:zoom-in;border:0;padding:0;display:block;width:100%}
-.ph img{width:100%;height:100%;object-fit:cover;display:block}
-.meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.num{font:200 36px/1 var(--serif)}
-.ttl{font-size:14px;color:var(--olive);text-align:right}
-.vote{border:1px solid var(--espresso);background:transparent;padding:12px;font-weight:500;letter-spacing:.02em;transition:.15s}
+.link{background:none;border:0;border-bottom:1px solid currentColor;padding:0;font-size:14px;color:var(--clay);min-height:44px;display:inline-flex;align-items:center}
+.status{font-size:14px;color:var(--olive);flex-shrink:0;text-align:right}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:36px 28px;margin-top:36px;padding:8px 4px 24px;align-items:start}
+.card{display:flex;flex-direction:column;gap:14px;background:transparent;border:0;padding:0;transform:rotate(var(--r,0deg));transition:transform .25s ease;max-width:100%}
+.card:nth-child(5n+1){--r:-1.6deg}.card:nth-child(5n+2){--r:1.3deg}.card:nth-child(5n+3){--r:-.7deg}.card:nth-child(5n+4){--r:1.8deg}.card:nth-child(5n+5){--r:-1.1deg}
+@media (hover:hover){
+.card:hover{transform:rotate(0deg) translateY(-4px);z-index:1}
+.card:hover .polaroid{box-shadow:0 18px 40px rgba(61,57,53,.22),0 2px 6px rgba(61,57,53,.08)}
 .vote:hover:not(:disabled){background:var(--clay);border-color:var(--clay);color:var(--white)}
+.list button:hover{background:var(--sand)}
+}
+.polaroid{background:#fffef8;padding:14px 14px 0;box-shadow:0 12px 28px rgba(61,57,53,.16),0 2px 4px rgba(61,57,53,.06);transition:box-shadow .25s ease;width:100%}
+.card.picked .polaroid{outline:2px solid var(--olive);outline-offset:3px}
+.ph{aspect-ratio:1;background:var(--sand);overflow:hidden;cursor:zoom-in;border:0;padding:0;display:block;width:100%}
+.ph img{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1.02) saturate(.96)}
+.meta{padding:16px 8px 22px;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:84px;text-align:center}
+.num{font:200 13px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--taupe)}
+.ttl{font:200 22px/1.15 var(--serif);color:var(--espresso);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.by{font-size:13px;color:var(--olive);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vote{border:1px solid var(--espresso);background:transparent;padding:14px 12px;font-weight:500;letter-spacing:.02em;transition:.15s;min-height:48px;width:100%;touch-action:manipulation}
 .vote:disabled{border-color:var(--sand);color:var(--taupe);cursor:not-allowed}
 .card.picked .vote{background:var(--olive);border-color:var(--olive);color:var(--white)}
 .empty{padding:64px 0;color:var(--olive)}
-dialog{margin:auto;border:0;padding:0;background:var(--cream);color:var(--espresso);max-width:min(440px,calc(100vw - 32px));width:100%;box-shadow:0 20px 60px rgba(43,42,39,.35)}
+@keyframes settle{from{opacity:0;transform:translateY(18px) rotate(0)}to{opacity:1;transform:translateY(0) rotate(var(--r,0deg))}}
+.card{animation:settle .55s ease both}
+.card:nth-child(1){animation-delay:.02s}.card:nth-child(2){animation-delay:.06s}.card:nth-child(3){animation-delay:.1s}
+.card:nth-child(4){animation-delay:.14s}.card:nth-child(5){animation-delay:.18s}.card:nth-child(6){animation-delay:.22s}
+dialog{margin:auto;border:0;padding:0;background:var(--cream);color:var(--espresso);max-width:min(440px,calc(100vw - 24px));width:100%;max-height:min(90vh,900px);box-shadow:0 20px 60px rgba(43,42,39,.35);overflow:auto}
 dialog::backdrop{background:rgba(43,42,39,.6)}
 .dlg{padding:28px}
-.dlg h2{font:200 34px/1.05 var(--serif);margin-bottom:8px}
+.dlg h2{font:200 clamp(28px,7vw,34px)/1.05 var(--serif);margin-bottom:8px}
 .dlg h2 em{color:var(--clay)}
 .dlg p{color:var(--olive);margin-bottom:16px;font-size:15px}
-.dlg input{width:100%;padding:12px;border:1px solid var(--taupe);background:var(--white);font:inherit;margin-bottom:8px;border-radius:0}
-.list{max-height:40vh;overflow:auto;border-top:1px solid var(--sand)}
-.list button{display:flex;justify-content:space-between;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--sand);padding:12px 4px}
-.list button:hover{background:var(--sand)}
-.list small{color:var(--taupe)}
-.row{display:flex;gap:8px;margin-top:8px}
-.btn{flex:1;padding:12px;border:1px solid var(--espresso);background:var(--espresso);color:var(--cream);font-weight:500}
+.dlg input{width:100%;padding:14px 12px;border:1px solid var(--taupe);background:var(--white);font:inherit;margin-bottom:8px;border-radius:0;font-size:16px}
+.list{max-height:min(40vh,320px);overflow:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--sand)}
+.list button{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--sand);padding:14px 4px;min-height:48px;touch-action:manipulation}
+.list small{color:var(--taupe);flex-shrink:0}
+.row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.btn{flex:1;padding:14px 12px;border:1px solid var(--espresso);background:var(--espresso);color:var(--cream);font-weight:500;min-height:48px;touch-action:manipulation}
 .btn.ghost{background:transparent;color:var(--espresso)}
 .err{color:var(--clay);margin-top:12px;font-size:14px}
-#lb{max-width:96vw;background:var(--ink);padding:0}
-#lb img{max-width:96vw;max-height:88vh;display:block;margin:auto}
-#lb .cap{color:var(--sand);padding:10px 14px;display:flex;justify-content:space-between;font-size:14px}
-#lb button{background:none;border:0;color:var(--cream)}
-footer{color:var(--taupe);font-size:13px;padding:40px 0}
+#lb{max-width:min(96vw,100%);width:auto;background:var(--ink);padding:0;margin:auto}
+#lb img{max-width:100%;max-height:min(78vh,calc(100dvh - 64px));width:auto;height:auto;display:block;margin:auto}
+#lb .cap{color:var(--sand);padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;font-size:14px}
+#lb .cap span{min-width:0;flex:1;overflow-wrap:anywhere}
+#lb button{background:none;border:0;color:var(--cream);min-height:44px;min-width:44px;flex-shrink:0;touch-action:manipulation}
+footer{color:var(--taupe);font-size:13px;padding:40px 0;padding-bottom:max(40px,env(safe-area-inset-bottom))}
+@media (max-width:640px){
+header{padding:20px 16px 28px}
+header img{height:32px;margin-bottom:28px}
+header h1{max-width:none}
+header p{font-size:15px;margin-top:14px}
+header .arc{width:220px;height:220px;right:-80px;top:-80px}
+header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
+.bar .wrap{flex-wrap:wrap;align-items:flex-start;gap:6px 12px;padding:10px 0}
+.who,.status{font-size:13px;line-height:1.35}
+.grid{grid-template-columns:1fr;gap:28px;margin-top:24px;padding:4px 8px 16px;max-width:360px;margin-left:auto;margin-right:auto}
+.card{--r:0deg!important}
+.card:nth-child(odd){--r:-.8deg!important}
+.card:nth-child(even){--r:.8deg!important}
+.polaroid{padding:12px 12px 0}
+.meta{padding:14px 6px 18px;min-height:76px}
+.ttl{font-size:20px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.by{white-space:normal}
+.vote{font-size:15px}
+.dlg{padding:22px 18px}
+.list{max-height:min(50vh,360px)}
+.row .btn{flex:1 1 calc(50% - 4px)}
+#lb img{max-height:min(70vh,calc(100dvh - 72px))}
+}
+@media (max-width:380px){
+.grid{padding-left:2px;padding-right:2px;max-width:none}
+.card{--r:0deg!important}
+}
 </style>
 </head>
 <body>
 <header>
   <div class="arc"></div><div class="arc b"></div>
   <img src="assets/nt-white.png" alt="nettletontribe">
-  <h1>staff photo <em>exhibition</em></h1>
+  <h1>thresholds <em>exhibition</em></h1>
   <p>Browse every entry, then cast your one vote. The photo with the most votes wins. You can’t vote for your own work.</p>
 </header>
 
@@ -80,7 +120,7 @@ footer{color:var(--taupe);font-size:13px;padding:40px 0}
 <main class="wrap">
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden>No photos yet.</div>
-  <footer>nettletontribe · one vote per person</footer>
+  <footer>nettletontribe · one vote per person · <a href="/admin" style="color:inherit">admin</a></footer>
 </main>
 
 <dialog id="pick"><div class="dlg">
@@ -146,10 +186,17 @@ function render() {
   $('grid').innerHTML = S.photos.map((ph) => {
     const own = isOwn(ph), picked = me?.votedFor === ph.id;
     let label = 'Vote', dis = !me || me.voted || own;
-    if (!me) label = 'Choose your name to vote'; else if (picked) label = 'Your vote ✓'; else if (own) label = 'Your photo'; else if (me.voted) label = 'Vote cast';
+    if (!me) label = matchMedia('(max-width:640px)').matches ? 'Choose name' : 'Choose your name to vote';
+    else if (picked) label = 'Your vote ✓'; else if (own) label = 'Your photo'; else if (me.voted) label = 'Vote cast';
     return `<article class="card ${picked ? 'picked' : ''}">
-      <button class="ph" data-zoom="${ph.id}"><img loading="lazy" src="${esc(ph.thumb)}" alt="Photo ${esc(ph.number)}"></button>
-      <div class="meta"><span class="num">${esc(ph.number)}</span><span class="ttl">${esc(ph.title)}</span></div>
+      <div class="polaroid">
+        <button class="ph" data-zoom="${ph.id}"><img loading="lazy" src="${esc(ph.thumb)}" alt="Photo ${esc(ph.number)}"></button>
+        <div class="meta">
+          <span class="num">no. ${esc(ph.number)}</span>
+          <span class="ttl">${esc(ph.title || 'Untitled')}</span>
+          ${ph.submitter ? `<span class="by">${esc(ph.submitter)}</span>` : ''}
+        </div>
+      </div>
       <button class="vote" data-vote="${ph.id}" ${dis ? 'disabled' : ''}>${label}</button>
     </article>`;
   }).join('');
@@ -157,7 +204,12 @@ function render() {
 
 $('grid').addEventListener('click', (e) => {
   const z = e.target.closest('[data-zoom]'), v = e.target.closest('[data-vote]');
-  if (z) { const ph = S.photos.find((p) => p.id === z.dataset.zoom); $('lbi').src = ph.full; $('lbc').textContent = `${ph.number}  ${ph.title}`; $('lb').showModal(); }
+  if (z) {
+    const ph = S.photos.find((p) => p.id === z.dataset.zoom);
+    $('lbi').src = ph.full;
+    $('lbc').textContent = [ph.number, ph.title, ph.submitter].filter(Boolean).join('  ·  ');
+    $('lb').showModal();
+  }
   if (v && !v.disabled) {
     const ph = S.photos.find((p) => p.id === v.dataset.vote); S.pending = ph;
     $('cn').textContent = `no. ${ph.number}`; $('ct').textContent = ph.title || ''; $('cerr').textContent = ''; $('confirm').showModal();
