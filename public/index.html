@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Thresholds Exhibition – Vote</title>
+<title>thresholds</title>
 <meta name="theme-color" content="#3d3935">
+<link rel="icon" href="assets/nt-dark.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/nt-dark.png">
 <style>
 @font-face{font-family:"Basis Grotesque";src:url(assets/fonts/BasisGrotesquePro-Regular.otf) format("opentype");font-weight:400;font-display:swap}
 @font-face{font-family:"Basis Grotesque";src:url(assets/fonts/BasisGrotesquePro-Medium.otf) format("opentype");font-weight:500;font-display:swap}
@@ -22,7 +24,9 @@ header .arc.b{width:240px;height:240px;right:-60px;top:-60px}
 header img{height:40px;display:block;margin-bottom:56px;position:relative}
 header h1{font:200 clamp(36px,9vw,84px)/1.05 var(--serif);letter-spacing:0;position:relative;max-width:12em}
 header h1 em{font-style:italic;color:var(--sand)}
-header p{margin-top:18px;max-width:34em;color:var(--sand);position:relative}
+header .lede{margin-top:18px;max-width:40em;color:var(--sand);position:relative}
+header .lede p{margin-top:14px}
+header .lede p:first-child{margin-top:0}
 .wrap{max-width:1200px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-left)) 0 max(16px,env(safe-area-inset-right))}
 .bar{position:sticky;top:0;z-index:5;background:var(--cream);border-bottom:1px solid var(--sand);padding-top:env(safe-area-inset-top,0)}
 .bar .wrap{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;min-height:48px}
@@ -79,7 +83,8 @@ footer{color:var(--taupe);font-size:13px;padding:40px 0;padding-bottom:max(40px,
 header{padding:20px 16px 28px}
 header img{height:32px;margin-bottom:28px}
 header h1{max-width:none}
-header p{font-size:15px;margin-top:14px}
+header .lede{font-size:15px;margin-top:14px}
+header .lede p{margin-top:12px}
 header .arc{width:220px;height:220px;right:-80px;top:-80px}
 header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 .bar .wrap{flex-wrap:wrap;align-items:flex-start;gap:6px 12px;padding:10px 0}
@@ -108,8 +113,11 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 <header>
   <div class="arc"></div><div class="arc b"></div>
   <img src="assets/nt-white.png" alt="nettletontribe">
-  <h1>thresholds <em>exhibition</em></h1>
-  <p>Browse every entry, then cast your one vote. The photo with the most votes wins. You can’t vote for your own work.</p>
+  <h1>thresholds</h1>
+  <div class="lede">
+    <p>The point of transition. The moment before you’re somewhere, and the moment after.</p>
+    <p>Architecture is full of these moments, but we rarely stop to notice them. This brief invites you to slow down and photograph the in-between: the edges, seams, and passages that define how we move through built space.</p>
+  </div>
 </header>
 
 <div class="bar"><div class="wrap">
