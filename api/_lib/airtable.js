@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 const BASE = process.env.AIRTABLE_BASE_ID || 'apptoZsfDK2F6svew';
+const MAX_VOTES = 3;
 const T = {
   photos: 'tblhWa51xaJUvcq10', voters: 'tblTfafGBXSbZNjlU', votes: 'tblv3r3wm8aemQqkS',
   submitters: 'tbljpgMtgxx87nL4C',
@@ -140,27 +141,59 @@ async function createPhotoFromUpload({ title, number, contentType, file, filenam
   return mapPhoto(updated) || { id: created.id, number: photoId, title: title || '' };
 }
 
+async function votesByVoter() {
+  const recs = await listAll(T.votes, [F.voteVoter, F.votePhoto]);
+  const map = {};
+  for (const r of recs) {
+    const voterId = first(r.fields[F.voteVoter]);
+    const photoId = first(r.fields[F.votePhoto]);
+    if (!voterId || !photoId) continue;
+    (map[voterId] || (map[voterId] = [])).push(photoId);
+  }
+  return map;
+}
+
 async function getVoters() {
-  const recs = await listAll(T.voters, [F.voterName, F.voterEmail, F.voterVotes]);
+  const [recs, byVoter] = await Promise.all([
+    listAll(T.voters, [F.voterName, F.voterEmail, F.voterVotes]),
+    votesByVoter(),
+  ]);
   return recs
-    .map((r) => ({ id: r.id, name: r.fields[F.voterName] || '', key: key(r.fields[F.voterEmail]), voted: (r.fields[F.voterVotes] || []).length > 0 }))
+    .map((r) => {
+      const votedPhotoIds = byVoter[r.id] || [];
+      const votes = Math.max((r.fields[F.voterVotes] || []).length, votedPhotoIds.length);
+      return {
+        id: r.id,
+        name: r.fields[F.voterName] || '',
+        key: key(r.fields[F.voterEmail]),
+        votes,
+        remaining: Math.max(0, MAX_VOTES - votes),
+        votedPhotoIds,
+        voted: votes >= MAX_VOTES,
+      };
+    })
     .filter((v) => v.name)
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function castVote(voterId, photoId) {
-  const [v, p] = await Promise.all([
+  const [v, p, byVoter] = await Promise.all([
     at(`${T.voters}/${voterId}?returnFieldsByFieldId=true`),
     at(`${T.photos}/${photoId}?returnFieldsByFieldId=true`),
+    votesByVoter(),
   ]);
-  if ((v.fields[F.voterVotes] || []).length) return { status: 409, error: 'This name has already voted.' };
+  const votedPhotoIds = byVoter[voterId] || [];
+  const votes = Math.max((v.fields[F.voterVotes] || []).length, votedPhotoIds.length);
+  if (votes >= MAX_VOTES) return { status: 409, error: `You’ve already used all ${MAX_VOTES} votes.` };
+  if (votedPhotoIds.includes(photoId)) return { status: 409, error: 'You already voted for this photo.' };
   const mine = (p.fields[F.photoSubEmail] || []).map((e) => String(e).toLowerCase());
   if (mine.includes(String(v.fields[F.voterEmail] || '').toLowerCase())) return { status: 403, error: "You can't vote for your own photo." };
   await at(T.votes, { method: 'POST', body: JSON.stringify({ fields: { [F.voteVoter]: [voterId], [F.votePhoto]: [photoId] } }) });
-  return { status: 200, ok: true };
+  const next = votes + 1;
+  return { status: 200, ok: true, votes: next, remaining: MAX_VOTES - next, maxVotes: MAX_VOTES };
 }
 
 module.exports = {
-  getPhotos, getVoters, castVote, checkAdmin, adminToken,
+  getPhotos, getVoters, castVote, checkAdmin, adminToken, MAX_VOTES,
   createPhotoFromUrl, createPhotoFromUpload, nextPhotoNumber, F, T,
 };

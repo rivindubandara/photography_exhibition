@@ -7,6 +7,8 @@ module.exports = async (req, res) => {
     const { voterId, photoId } = body;
     if (!/^rec\w{14}$/.test(voterId || '') || !/^rec\w{14}$/.test(photoId || '')) return res.status(400).json({ error: 'Bad request' });
     const r = await castVote(voterId, photoId);
-    res.status(r.status).json(r.ok ? { ok: true } : { error: r.error });
+    res.status(r.status).json(r.ok
+      ? { ok: true, votes: r.votes, remaining: r.remaining, maxVotes: r.maxVotes }
+      : { error: r.error });
   } catch (e) { res.status(500).json({ error: e.message }); }
 };

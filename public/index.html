@@ -128,12 +128,12 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 <main class="wrap">
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden>No photos yet.</div>
-  <footer>nettletontribe · one vote per person · <a href="/admin" style="color:inherit">admin</a></footer>
+  <footer>nettletontribe · three votes per person · <a href="/admin" style="color:inherit">admin</a></footer>
 </main>
 
 <dialog id="pick"><div class="dlg">
   <h2>who’s <em>voting?</em></h2>
-  <p>Choose your name. Each person gets one vote.</p>
+  <p>Choose your name. Each person gets three votes (one per photo).</p>
   <input id="q" placeholder="Search your name" autocomplete="off">
   <div class="list" id="names"></div>
 </div></dialog>
@@ -141,14 +141,14 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 <dialog id="confirm"><div class="dlg">
   <h2>vote for <em id="cn"></em>?</h2>
   <p id="ct"></p>
-  <p>You only get one vote and it can’t be changed.</p>
+  <p id="crem">Votes can’t be changed once cast.</p>
   <div class="row"><button class="btn ghost" id="cno">Cancel</button><button class="btn" id="cyes">Confirm vote</button></div>
   <div class="err" id="cerr"></div>
 </div></dialog>
 
 <dialog id="done"><div class="dlg">
   <h2>thank <em>you.</em></h2>
-  <p>Your vote is in. Results will be announced at the exhibition.</p>
+  <p id="dmsg">Your vote is in.</p>
   <div class="row"><button class="btn" id="dok">Back to the gallery</button></div>
 </div></dialog>
 
@@ -159,10 +159,16 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 
 <script>
 const $ = (id) => document.getElementById(id);
+const MAX_VOTES = 3;
 const S = { photos: [], voters: [], me: null, pending: null };
 const store = {
   get(k){ try { return localStorage.getItem(k); } catch { return null; } },
   set(k,v){ try { v==null ? localStorage.removeItem(k) : localStorage.setItem(k,v); } catch {} },
+  getVotes(id){
+    try { const j = JSON.parse(localStorage.getItem('nt-votes:' + id) || '[]'); return Array.isArray(j) ? j : []; }
+    catch { return []; }
+  },
+  setVotes(id, ids){ store.set('nt-votes:' + id, JSON.stringify(ids || [])); },
 };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -172,16 +178,39 @@ async function api(path, opts) {
   return j;
 }
 
+function hydrateMe(v) {
+  if (!v) return null;
+  const local = store.getVotes(v.id);
+  const votedPhotoIds = [...new Set([...(v.votedPhotoIds || []), ...local])];
+  const votes = Math.max(v.votes || 0, votedPhotoIds.length);
+  return {
+    ...v,
+    votedPhotoIds,
+    votes,
+    remaining: Math.max(0, MAX_VOTES - votes),
+    voted: votes >= MAX_VOTES,
+  };
+}
+
 async function load() {
   const [p, v] = await Promise.all([api('/api/photos'), api('/api/voters')]);
   S.photos = p.photos; S.voters = v.voters;
   const saved = store.get('nt-voter');
-  S.me = S.voters.find((x) => x.id === saved) || null;
+  S.me = hydrateMe(S.voters.find((x) => x.id === saved) || null);
   render();
   if (!S.me) $('pick').showModal();
 }
 
 const isOwn = (ph) => S.me && ph.ownerKeys.includes(S.me.key);
+const hasVotedFor = (ph) => S.me && (S.me.votedPhotoIds || []).includes(ph.id);
+
+function voteStatus() {
+  const me = S.me;
+  if (!me) return `${S.photos.length} photo${S.photos.length === 1 ? '' : 's'}`;
+  if (me.voted) return 'All 3 votes cast ✓';
+  if (me.votes > 0) return `${me.remaining} of ${MAX_VOTES} left`;
+  return `${MAX_VOTES} votes to cast`;
+}
 
 function render() {
   const me = S.me;
@@ -189,13 +218,16 @@ function render() {
     ? `Voting as <b>${esc(me.name)}</b> · <button class="link" id="chg">${me.voted ? 'switch' : 'not you?'}</button>`
     : `<button class="link" id="chg">Choose your name</button>`;
   $('chg').onclick = () => $('pick').showModal();
-  $('count').textContent = me?.voted ? 'Vote cast ✓' : `${S.photos.length} photo${S.photos.length === 1 ? '' : 's'}`;
+  $('count').textContent = voteStatus();
   $('empty').hidden = S.photos.length > 0;
   $('grid').innerHTML = S.photos.map((ph) => {
-    const own = isOwn(ph), picked = me?.votedFor === ph.id;
-    let label = 'Vote', dis = !me || me.voted || own;
+    const own = isOwn(ph), picked = hasVotedFor(ph);
+    const done = !!(me && me.voted);
+    let label = 'Vote', dis = !me || done || own || picked;
     if (!me) label = matchMedia('(max-width:640px)').matches ? 'Choose name' : 'Choose your name to vote';
-    else if (picked) label = 'Your vote ✓'; else if (own) label = 'Your photo'; else if (me.voted) label = 'Vote cast';
+    else if (picked) label = 'Your vote ✓';
+    else if (own) label = 'Your photo';
+    else if (done) label = 'All votes cast';
     return `<article class="card ${picked ? 'picked' : ''}">
       <div class="polaroid">
         <button class="ph" data-zoom="${ph.id}"><img loading="lazy" src="${esc(ph.thumb)}" alt="Photo ${esc(ph.number)}"></button>
@@ -220,7 +252,14 @@ $('grid').addEventListener('click', (e) => {
   }
   if (v && !v.disabled) {
     const ph = S.photos.find((p) => p.id === v.dataset.vote); S.pending = ph;
-    $('cn').textContent = `no. ${ph.number}`; $('ct').textContent = ph.title || ''; $('cerr').textContent = ''; $('confirm').showModal();
+    $('cn').textContent = `no. ${ph.number}`;
+    $('ct').textContent = ph.title || '';
+    const left = S.me ? S.me.remaining : MAX_VOTES;
+    $('crem').textContent = left <= 1
+      ? 'This uses your last vote. Votes can’t be changed once cast.'
+      : `You’ll have ${left - 1} vote${left - 1 === 1 ? '' : 's'} left after this. Votes can’t be changed once cast.`;
+    $('cerr').textContent = '';
+    $('confirm').showModal();
   }
 });
 $('lbx').onclick = () => $('lb').close();
@@ -231,19 +270,40 @@ $('dok').onclick = () => $('done').close();
 $('cyes').onclick = async () => {
   const btn = $('cyes'); btn.disabled = true; $('cerr').textContent = '';
   try {
-    await api('/api/vote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voterId: S.me.id, photoId: S.pending.id }) });
-    S.me.voted = true; S.me.votedFor = S.pending.id; store.set('nt-voter-for', S.pending.id);
-    $('confirm').close(); render(); $('done').showModal();
+    const r = await api('/api/vote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voterId: S.me.id, photoId: S.pending.id }) });
+    const ids = [...new Set([...(S.me.votedPhotoIds || []), S.pending.id])];
+    S.me.votedPhotoIds = ids;
+    S.me.votes = r.votes != null ? r.votes : ids.length;
+    S.me.remaining = r.remaining != null ? r.remaining : Math.max(0, MAX_VOTES - S.me.votes);
+    S.me.voted = S.me.votes >= MAX_VOTES;
+    store.setVotes(S.me.id, ids);
+    $('confirm').close();
+    render();
+    $('dmsg').textContent = S.me.voted
+      ? 'All three votes are in. Results will be announced at the exhibition.'
+      : `Vote saved. You have ${S.me.remaining} vote${S.me.remaining === 1 ? '' : 's'} left.`;
+    $('done').showModal();
   } catch (e) {
     $('cerr').textContent = e.message;
-    if (e.status === 409) { S.me.voted = true; render(); }
+    if (e.status === 409) {
+      if (!S.me.votedPhotoIds.includes(S.pending.id)) S.me.votedPhotoIds.push(S.pending.id);
+      S.me.votes = Math.max(S.me.votes || 0, S.me.votedPhotoIds.length);
+      S.me.remaining = Math.max(0, MAX_VOTES - S.me.votes);
+      S.me.voted = S.me.votes >= MAX_VOTES;
+      store.setVotes(S.me.id, S.me.votedPhotoIds);
+      render();
+    }
   } finally { btn.disabled = false; }
 };
 
 function names(filter = '') {
   const f = filter.trim().toLowerCase();
   $('names').innerHTML = S.voters.filter((v) => v.name.toLowerCase().includes(f))
-    .map((v) => `<button data-id="${v.id}"><span>${esc(v.name)}</span>${v.voted ? '<small>voted</small>' : ''}</button>`).join('') || '<p style="padding:12px 4px">No match.</p>';
+    .map((v) => {
+      const left = v.remaining != null ? v.remaining : Math.max(0, MAX_VOTES - (v.votes || 0));
+      const tag = v.voted ? 'done' : (v.votes > 0 ? `${left} left` : '');
+      return `<button data-id="${v.id}"><span>${esc(v.name)}</span>${tag ? `<small>${tag}</small>` : ''}</button>`;
+    }).join('') || '<p style="padding:12px 4px">No match.</p>';
 }
 $('pick').addEventListener('close', () => { $('q').value = ''; });
 $('pick').addEventListener('toggle', () => names());
@@ -251,8 +311,7 @@ new MutationObserver(() => { if ($('pick').open) { names(); setTimeout(() => $('
 $('q').oninput = (e) => names(e.target.value);
 $('names').onclick = (e) => {
   const b = e.target.closest('[data-id]'); if (!b) return;
-  S.me = S.voters.find((v) => v.id === b.dataset.id);
-  if (S.me.voted && store.get('nt-voter') === S.me.id) S.me.votedFor = store.get('nt-voter-for');
+  S.me = hydrateMe(S.voters.find((v) => v.id === b.dataset.id));
   store.set('nt-voter', S.me.id); $('pick').close(); render();
 };
 

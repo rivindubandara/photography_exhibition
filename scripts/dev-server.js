@@ -10,13 +10,17 @@ const mime = { '.html': 'text/html', '.png': 'image/png', '.otf': 'font/otf', '.
 const real = !!process.env.AIRTABLE_TOKEN;
 
 const mock = {
-  voters: ['Ava Lee', 'Ben Cho', 'Cara Diaz', 'Dan Wu', 'Eli Park'].map((n, i) => ({ id: 'recVOTER' + String(i).padStart(7, '0'), name: n, key: 'k' + i, voted: false })),
+  voters: ['Ava Lee', 'Ben Cho', 'Cara Diaz', 'Dan Wu', 'Eli Park'].map((n, i) => ({
+    id: 'recVOTER' + String(i).padStart(7, '0'), name: n, key: 'k' + i,
+    votes: 0, remaining: 3, votedPhotoIds: [], voted: false,
+  })),
   photos: Array.from({ length: 8 }, (_, i) => ({ id: 'recPHOTO' + String(i).padStart(7, '0'), number: String(i + 1).padStart(3, '0'), title: ['Ajar', 'Last Light', 'Crossing', 'Fog Line', 'Half-Open', 'Shore Break', 'Between Floors', 'Drawn'][i],
     submitter: ['Ava Lee', 'Ben Cho', 'Cara Diaz', 'Dan Wu', 'Eli Park', 'Ava Lee', 'Ben Cho', 'Cara Diaz'][i],
     thumb: `/mock/${i}.svg`, full: `/mock/${i}.svg`, ownerKeys: ['k' + (i % 5)] })),
   votes: [],
   adminToken: null,
 };
+const MAX_VOTES = 3;
 const cols = ['#b06645', '#9c8f7d', '#6a6a59', '#cecea8', '#d4c9bf', '#3d3935'];
 
 const send = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
@@ -41,9 +45,16 @@ http.createServer(async (req, res) => {
     if (url === '/api/vote') {
       const { voterId, photoId } = JSON.parse(await readBody(req));
       const v = mock.voters.find((x) => x.id === voterId), p = mock.photos.find((x) => x.id === photoId);
-      if (v.voted) return send(res, 409, { error: 'This name has already voted.' });
+      if (!v || !p) return send(res, 400, { error: 'Bad request' });
+      if (v.votes >= MAX_VOTES) return send(res, 409, { error: `You’ve already used all ${MAX_VOTES} votes.` });
+      if (v.votedPhotoIds.includes(photoId)) return send(res, 409, { error: 'You already voted for this photo.' });
       if (p.ownerKeys.includes(v.key)) return send(res, 403, { error: "You can't vote for your own photo." });
-      v.voted = true; mock.votes.push({ voterId, photoId }); return send(res, 200, { ok: true });
+      v.votedPhotoIds.push(photoId);
+      v.votes += 1;
+      v.remaining = MAX_VOTES - v.votes;
+      v.voted = v.votes >= MAX_VOTES;
+      mock.votes.push({ voterId, photoId });
+      return send(res, 200, { ok: true, votes: v.votes, remaining: v.remaining, maxVotes: MAX_VOTES });
     }
     if (url === '/api/admin') {
       const pw = process.env.ADMIN_PASSWORD || 'admin';
