@@ -126,19 +126,41 @@ async function createPhotoFromUrl({ title, number, url, filename }) {
   return mapPhoto(j) || { id: j.id, number: photoId, title: title || '' };
 }
 
+async function getSubmitters() {
+  const recs = await listAll(T.submitters, [F.submitterName]);
+  return recs
+    .map((r) => ({ id: r.id, name: r.fields[F.submitterName] || '' }))
+    .filter((s) => s.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Create a photo then attach base64 file bytes (≤5 MB). */
-async function createPhotoFromUpload({ title, number, contentType, file, filename }) {
+async function createPhotoFromUpload({ title, number, contentType, file, filename, submitterId }) {
+  if (!submitterId || !/^rec\w{14}$/.test(submitterId)) {
+    const e = new Error('Choose whose photo this is.');
+    e.status = 400;
+    throw e;
+  }
   const photoId = number || await nextPhotoNumber();
   const created = await at(`${T.photos}?returnFieldsByFieldId=true`, {
     method: 'POST',
-    body: JSON.stringify({ fields: { [F.photoId]: photoId, [F.title]: title || '' } }),
+    body: JSON.stringify({
+      fields: {
+        [F.photoId]: photoId,
+        [F.title]: title || '',
+        [F.photoSubmitter]: [submitterId],
+      },
+    }),
   });
   const updated = await uploadAttachment(created.id, {
     contentType: contentType || 'image/jpeg',
     file,
     filename: filename || `${photoId}.jpg`,
   });
-  return mapPhoto(updated) || { id: created.id, number: photoId, title: title || '' };
+  const names = await submitterNames();
+  return mapPhoto(updated, names) || {
+    id: created.id, number: photoId, title: title || '', submitter: names[submitterId] || '',
+  };
 }
 
 async function votesByVoter() {
@@ -194,6 +216,6 @@ async function castVote(voterId, photoId) {
 }
 
 module.exports = {
-  getPhotos, getVoters, castVote, checkAdmin, adminToken, MAX_VOTES,
+  getPhotos, getVoters, getSubmitters, castVote, checkAdmin, adminToken, MAX_VOTES,
   createPhotoFromUrl, createPhotoFromUpload, nextPhotoNumber, F, T,
 };

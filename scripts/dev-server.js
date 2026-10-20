@@ -19,6 +19,9 @@ const mock = {
     thumb: `/mock/${i}.svg`, full: `/mock/${i}.svg`, ownerKeys: ['k' + (i % 5)] })),
   votes: [],
   adminToken: null,
+  submitters: ['Ava Lee', 'Ben Cho', 'Cara Diaz', 'Dan Wu', 'Eli Park'].map((n, i) => ({
+    id: 'recSUB' + String(i).padStart(10, '0'), name: n,
+  })),
 };
 const MAX_VOTES = 3;
 const cols = ['#b06645', '#9c8f7d', '#6a6a59', '#cecea8', '#d4c9bf', '#3d3935'];
@@ -66,14 +69,25 @@ http.createServer(async (req, res) => {
       }
       return send(res, 401, { error: 'Wrong password.' });
     }
+    if (url === '/api/submitters') {
+      const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!mock.adminToken || auth !== mock.adminToken) return send(res, 401, { error: 'Unlock admin first.' });
+      return send(res, 200, { submitters: mock.submitters });
+    }
     if (url === '/api/upload') {
       const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!mock.adminToken || auth !== mock.adminToken) return send(res, 401, { error: 'Unlock admin first.' });
       const body = JSON.parse(await readBody(req) || '{}');
+      if (!body.submitterId) return send(res, 400, { error: 'Choose whose photo this is.' });
+      const sub = mock.submitters.find((s) => s.id === body.submitterId);
+      if (!sub) return send(res, 400, { error: 'Choose whose photo this is.' });
       const n = String(mock.photos.length + 1).padStart(3, '0');
       const id = 'recPHOTO' + String(mock.photos.length).padStart(7, '0');
       const i = mock.photos.length % 6;
-      const photo = { id, number: n, title: body.title || 'Untitled', thumb: `/mock/${i}.svg`, full: `/mock/${i}.svg`, ownerKeys: [] };
+      const photo = {
+        id, number: n, title: body.title || 'Untitled', submitter: sub.name,
+        thumb: `/mock/${i}.svg`, full: `/mock/${i}.svg`, ownerKeys: [mock.voters.find((v) => v.name === sub.name)?.key].filter(Boolean),
+      };
       mock.photos.push(photo);
       return send(res, 200, { ok: true, photo });
     }

@@ -8,8 +8,11 @@ module.exports = async (req, res) => {
   if (!checkAdmin(req)) return res.status(401).json({ error: 'Unlock admin first.' });
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
-    const { title, number, contentType, file, filename } = body;
+    const { title, number, contentType, file, filename, submitterId } = body;
     if (!file || typeof file !== 'string') return res.status(400).json({ error: 'Missing image data.' });
+    if (!submitterId || !/^rec\w{14}$/.test(String(submitterId))) {
+      return res.status(400).json({ error: 'Choose whose photo this is.' });
+    }
     const type = String(contentType || 'image/jpeg').toLowerCase();
     if (!OK_TYPES.has(type)) return res.status(400).json({ error: 'Use JPEG, PNG, WebP, or GIF.' });
     // rough size check from base64
@@ -19,6 +22,7 @@ module.exports = async (req, res) => {
     const photo = await createPhotoFromUpload({
       title: String(title || '').trim().slice(0, 120),
       number: number ? String(number).trim().slice(0, 16) : undefined,
+      submitterId: String(submitterId),
       contentType: type,
       file: file.replace(/^data:[^;]+;base64,/, ''),
       filename: String(filename || 'photo.jpg').replace(/[^\w.\-]+/g, '_').slice(0, 80),

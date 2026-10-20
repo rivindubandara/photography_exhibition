@@ -30,7 +30,8 @@ header p{margin-top:12px;color:var(--sand);max-width:36em;position:relative;font
 .gate h2 em,.panel h2 em{color:var(--clay)}
 .gate p,.panel p.lead{color:var(--olive);margin-bottom:18px;font-size:15px}
 label{display:block;font-size:13px;color:var(--olive);margin:14px 0 6px}
-input[type=password],input[type=text]{width:100%;padding:14px 12px;border:1px solid var(--taupe);background:var(--cream);border-radius:0;font-size:16px}
+input[type=password],input[type=text],select{width:100%;padding:14px 12px;border:1px solid var(--taupe);background:var(--cream);border-radius:0;font-size:16px}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--olive) 50%),linear-gradient(135deg,var(--olive) 50%,transparent 50%);background-position:calc(100% - 18px) calc(50% - 3px),calc(100% - 12px) calc(50% - 3px);background-size:6px 6px,6px 6px;background-repeat:no-repeat;padding-right:36px}
 .btn{display:inline-block;padding:14px 18px;border:1px solid var(--espresso);background:var(--espresso);color:var(--cream);font-weight:500;cursor:pointer;margin-top:16px;min-height:48px;touch-action:manipulation}
 @media (hover:hover){.btn:hover{background:var(--clay);border-color:var(--clay)}}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -93,7 +94,13 @@ header img{height:32px;margin-bottom:28px}
 
   <section class="panel" id="panel" hidden>
     <h2>add a <em>polaroid</em></h2>
-    <p class="lead">JPEG, PNG, WebP or GIF · under ~4.5 MB. Title appears on the caption strip.</p>
+    <p class="lead">JPEG, PNG, WebP or GIF · under ~4.5 MB. Pick whose photo it is, then add a title.</p>
+
+    <label for="who">Photographer / submitter</label>
+    <input id="whoq" type="text" placeholder="Search name" autocomplete="off" style="margin-bottom:8px">
+    <select id="who" required>
+      <option value="">Choose a name…</option>
+    </select>
 
     <label for="title">Title</label>
     <input id="title" type="text" placeholder="e.g. Last light" maxlength="120">
@@ -109,6 +116,7 @@ header img{height:32px;margin-bottom:28px}
       <div class="polaroid">
         <img id="pimg" alt="Preview">
         <div class="cap" id="pcap">Untitled</div>
+        <div class="cap" id="pby" style="margin-top:6px;font:400 13px/1.2 var(--sans);color:var(--olive)"></div>
       </div>
     </div>
 
@@ -133,6 +141,7 @@ const store = {
   set(v) { try { v ? sessionStorage.setItem('nt-admin', v) : sessionStorage.removeItem('nt-admin'); } catch {} },
 };
 let pending = null; // { file, dataUrl, contentType, filename }
+let submitters = [];
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -152,6 +161,33 @@ function showUnlocked(on) {
   $('lock').hidden = !on;
 }
 
+function selectedName() {
+  const id = $('who').value;
+  return submitters.find((s) => s.id === id)?.name || '';
+}
+
+function syncPreviewMeta() {
+  $('pcap').textContent = $('title').value.trim() || 'Untitled';
+  $('pby').textContent = selectedName();
+}
+
+function fillWho(filter = '') {
+  const f = filter.trim().toLowerCase();
+  const cur = $('who').value;
+  const list = submitters.filter((s) => !f || s.name.toLowerCase().includes(f));
+  $('who').innerHTML = `<option value="">Choose a name…</option>` + list
+    .map((s) => `<option value="${esc(s.id)}" ${s.id === cur ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+  if (cur && !list.some((s) => s.id === cur)) $('who').value = '';
+  syncPreviewMeta();
+  updateSend();
+}
+
+async function loadSubmitters() {
+  const j = await api('/api/submitters');
+  submitters = j.submitters || [];
+  fillWho($('whoq').value);
+}
+
 async function unlock() {
   $('gerr').textContent = '';
   try {
@@ -163,7 +199,7 @@ async function unlock() {
     store.set(j.token);
     $('pw').value = '';
     showUnlocked(true);
-    loadPhotos();
+    await Promise.all([loadSubmitters(), loadPhotos()]);
   } catch (e) { $('gerr').textContent = e.message; }
 }
 
@@ -173,7 +209,7 @@ async function boot() {
   try {
     await api('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     showUnlocked(true);
-    loadPhotos();
+    await Promise.all([loadSubmitters(), loadPhotos()]);
   } catch { store.set(null); showUnlocked(false); }
 }
 
@@ -181,11 +217,15 @@ async function loadPhotos() {
   try {
     const j = await api('/api/photos');
     $('thumbs').innerHTML = (j.photos || []).map((p) =>
-      `<div class="thumb"><img loading="lazy" src="${esc(p.thumb)}" alt=""><span>${esc(p.number)} · ${esc(p.title || 'Untitled')}</span></div>`
+      `<div class="thumb"><img loading="lazy" src="${esc(p.thumb)}" alt=""><span>${esc(p.number)} · ${esc(p.title || 'Untitled')}${p.submitter ? ` · ${esc(p.submitter)}` : ''}</span></div>`
     ).join('') || '<p class="lead">No photos yet.</p>';
   } catch (e) {
     $('thumbs').innerHTML = `<p class="err">${esc(e.message)}</p>`;
   }
+}
+
+function updateSend() {
+  $('send').disabled = !(pending && $('who').value);
 }
 
 function readFile(file) {
@@ -211,9 +251,9 @@ async function setFile(file) {
   const dataUrl = await readFile(file);
   pending = { file, dataUrl, contentType: file.type, filename: file.name };
   $('pimg').src = dataUrl;
-  $('pcap').textContent = $('title').value.trim() || 'Untitled';
+  syncPreviewMeta();
   $('preview').classList.add('show');
-  $('send').disabled = false;
+  updateSend();
 }
 
 $('drop').onclick = () => $('file').click();
@@ -224,15 +264,21 @@ $('drop').addEventListener('drop', (e) => {
   const f = e.dataTransfer.files?.[0]; if (f) setFile(f);
 });
 $('file').onchange = () => { const f = $('file').files?.[0]; if (f) setFile(f); };
-$('title').oninput = () => { $('pcap').textContent = $('title').value.trim() || 'Untitled'; };
+$('title').oninput = syncPreviewMeta;
+$('who').onchange = () => { syncPreviewMeta(); updateSend(); };
+$('whoq').oninput = (e) => fillWho(e.target.value);
 
 function clearForm() {
   pending = null;
   $('file').value = '';
   $('title').value = '';
+  $('whoq').value = '';
+  fillWho('');
+  $('who').value = '';
   $('preview').classList.remove('show');
   $('pimg').removeAttribute('src');
-  $('send').disabled = true;
+  $('pby').textContent = '';
+  updateSend();
   $('uerr').textContent = '';
 }
 
@@ -240,6 +286,7 @@ $('clear').onclick = clearForm;
 
 $('send').onclick = async () => {
   if (!pending) return;
+  if (!$('who').value) { $('uerr').textContent = 'Choose whose photo this is.'; return; }
   const btn = $('send'); btn.disabled = true; $('uerr').textContent = ''; $('uok').textContent = '';
   try {
     const base64 = pending.dataUrl.split(',')[1];
@@ -248,18 +295,20 @@ $('send').onclick = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: $('title').value.trim(),
+        submitterId: $('who').value,
         contentType: pending.contentType,
         filename: pending.filename,
         file: base64,
       }),
     });
-    $('uok').textContent = `Uploaded ${j.photo?.number || ''} — it’s in Airtable and the gallery.`;
+    const who = j.photo?.submitter || selectedName();
+    $('uok').textContent = `Uploaded ${j.photo?.number || ''} for ${who} — it’s in Airtable and the gallery.`;
     clearForm();
     loadPhotos();
   } catch (e) {
     $('uerr').textContent = e.message;
     if (e.status === 401) { store.set(null); showUnlocked(false); }
-    btn.disabled = false;
+    updateSend();
   }
 };
 
