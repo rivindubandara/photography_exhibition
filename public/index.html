@@ -47,10 +47,10 @@ header .lede p:first-child{margin-top:0}
 .card.picked .polaroid{outline:2px solid var(--olive);outline-offset:3px}
 .ph{aspect-ratio:1;background:var(--sand);overflow:hidden;cursor:zoom-in;border:0;padding:0;display:block;width:100%}
 .ph img{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1.02) saturate(.96)}
-.meta{padding:16px 8px 22px;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:84px;text-align:center}
-.num{font:200 13px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--taupe)}
-.ttl{font:200 22px/1.15 var(--serif);color:var(--espresso);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.by{font-size:13px;color:var(--olive);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{padding:14px 10px 20px;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:88px;text-align:center;width:100%}
+.num{font:200 12px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--taupe)}
+.ttl{font:200 22px/1.15 var(--serif);color:var(--espresso);max-width:100%;width:100%;box-sizing:border-box;padding:0 2px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;hyphens:auto;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;max-height:calc(1.15em * 3);text-align:center}
+.by{font-size:12px;color:var(--olive);max-width:100%;width:100%;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .vote{border:1px solid var(--espresso);background:transparent;padding:14px 12px;font-weight:500;letter-spacing:.02em;transition:.15s;min-height:48px;width:100%;touch-action:manipulation}
 .vote:disabled{border-color:var(--sand);color:var(--taupe);cursor:not-allowed}
 .card.picked .vote{background:var(--olive);border-color:var(--olive);color:var(--white)}
@@ -94,9 +94,8 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 .card:nth-child(odd){--r:-.8deg!important}
 .card:nth-child(even){--r:.8deg!important}
 .polaroid{padding:12px 12px 0}
-.meta{padding:14px 6px 18px;min-height:76px}
-.ttl{font-size:20px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.by{white-space:normal}
+.meta{padding:12px 8px 16px;min-height:80px}
+.ttl{font-size:18px;-webkit-line-clamp:3}
 .vote{font-size:15px}
 .dlg{padding:22px 18px}
 .list{max-height:min(50vh,360px)}
@@ -240,6 +239,21 @@ function render() {
       <button class="vote" data-vote="${ph.id}" ${dis ? 'disabled' : ''}>${label}</button>
     </article>`;
   }).join('');
+  fitCaptions();
+}
+
+function fitCaptions() {
+  const base = matchMedia('(max-width:640px)').matches ? 18 : 22;
+  const min = 13;
+  document.querySelectorAll('.ttl').forEach((el) => {
+    el.style.fontSize = base + 'px';
+    let size = base;
+    // Shrink until the clamped box no longer overflows (fits the polaroid strip)
+    while (size > min && el.scrollHeight > el.clientHeight + 1) {
+      size -= 1;
+      el.style.fontSize = size + 'px';
+    }
+  });
 }
 
 $('grid').addEventListener('click', (e) => {
@@ -315,6 +329,7 @@ $('names').onclick = (e) => {
   store.set('nt-voter', S.me.id); $('pick').close(); render();
 };
 
+addEventListener('resize', () => { if (S.photos.length) fitCaptions(); });
 load().catch((e) => { $('empty').hidden = false; $('empty').textContent = 'Could not load the gallery: ' + e.message; });
 </script>
 </body>

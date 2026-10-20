@@ -45,19 +45,25 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .drop input{display:none}
 .preview{margin-top:16px;display:none}
 .preview.show{display:block}
-.polaroid{background:#fffef8;padding:14px 14px 52px;width:min(280px,100%);box-shadow:0 10px 28px rgba(61,57,53,.18),0 1px 2px rgba(61,57,53,.08);transform:rotate(-1.2deg);margin:0 auto}
+.polaroid{background:#fffef8;padding:14px 14px 20px;width:min(280px,100%);box-shadow:0 10px 28px rgba(61,57,53,.18),0 1px 2px rgba(61,57,53,.08);transform:rotate(-1.2deg);margin:0 auto}
 .polaroid img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--sand)}
-.polaroid .cap{margin-top:14px;font:200 22px/1 var(--serif);text-align:center;color:var(--espresso)}
+.polaroid .cap{margin-top:14px;font:200 20px/1.15 var(--serif);text-align:center;color:var(--espresso);overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;max-height:calc(1.15em * 3)}
+.polaroid #pby{margin-top:6px;font:400 13px/1.2 var(--sans);color:var(--olive);-webkit-line-clamp:2;max-height:none}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
 .bar a{color:var(--clay);font-size:14px;min-height:44px;display:inline-flex;align-items:center}
 .list{margin-top:28px}
 .list h3{font:200 clamp(24px,6vw,28px)/1 var(--serif);margin-bottom:12px}
-.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,140px),1fr));gap:16px}
-.thumb{background:#fffef8;padding:8px 8px 28px;box-shadow:0 6px 16px rgba(61,57,53,.12);transform:rotate(var(--r,0deg))}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));gap:16px}
+.thumb{background:#fffef8;padding:8px 8px 12px;box-shadow:0 6px 16px rgba(61,57,53,.12);transform:rotate(var(--r,0deg));display:flex;flex-direction:column;gap:8px}
 .thumb:nth-child(3n){--r:-1.4deg}.thumb:nth-child(3n+1){--r:1.1deg}.thumb:nth-child(3n+2){--r:-.5deg}
 .thumb img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
-.thumb span{display:block;margin-top:8px;font-size:12px;color:var(--olive);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thumb .info{font-size:12px;color:var(--olive);text-align:center;line-height:1.35;overflow-wrap:anywhere}
+.thumb .info b{display:block;font:200 15px/1.2 var(--serif);font-weight:200;color:var(--espresso);margin:4px 0 2px}
+.thumb .actions{display:flex;gap:6px}
+.thumb .actions button{flex:1;margin:0;padding:8px 6px;min-height:40px;font-size:12px}
+.btn.danger{background:transparent;color:var(--clay);border-color:var(--clay)}
+@media (hover:hover){.btn.danger:hover{background:var(--clay);color:var(--white)}}
 [hidden]{display:none!important}
 @media (max-width:640px){
 header{padding:20px 16px 28px}
@@ -116,7 +122,7 @@ header img{height:32px;margin-bottom:28px}
       <div class="polaroid">
         <img id="pimg" alt="Preview">
         <div class="cap" id="pcap">Untitled</div>
-        <div class="cap" id="pby" style="margin-top:6px;font:400 13px/1.2 var(--sans);color:var(--olive)"></div>
+        <div class="cap" id="pby"></div>
       </div>
     </div>
 
@@ -217,12 +223,64 @@ async function loadPhotos() {
   try {
     const j = await api('/api/photos');
     $('thumbs').innerHTML = (j.photos || []).map((p) =>
-      `<div class="thumb"><img loading="lazy" src="${esc(p.thumb)}" alt=""><span>${esc(p.number)} · ${esc(p.title || 'Untitled')}${p.submitter ? ` · ${esc(p.submitter)}` : ''}</span></div>`
+      `<div class="thumb" data-id="${esc(p.id)}">
+        <img loading="lazy" src="${esc(p.thumb)}" alt="">
+        <div class="info">
+          <span>no. ${esc(p.number)}</span>
+          <b>${esc(p.title || 'Untitled')}</b>
+          ${p.submitter ? `<span>${esc(p.submitter)}</span>` : ''}
+        </div>
+        <div class="actions">
+          <button type="button" class="btn ghost" data-rename="${esc(p.id)}" data-title="${esc(p.title || '')}">Rename</button>
+          <button type="button" class="btn danger" data-del="${esc(p.id)}" data-label="${esc(p.number)} ${esc(p.title || '')}">Delete</button>
+        </div>
+      </div>`
     ).join('') || '<p class="lead">No photos yet.</p>';
   } catch (e) {
     $('thumbs').innerHTML = `<p class="err">${esc(e.message)}</p>`;
   }
 }
+
+$('thumbs').addEventListener('click', async (e) => {
+  const ren = e.target.closest('[data-rename]');
+  const del = e.target.closest('[data-del]');
+  if (ren) {
+    const next = prompt('New title', ren.dataset.title || '');
+    if (next == null) return;
+    const title = String(next).trim();
+    if (!title) { alert('Enter a title.'); return; }
+    try {
+      await api('/api/photo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ren.dataset.rename, title }),
+      });
+      $('uok').textContent = 'Title updated.';
+      $('uerr').textContent = '';
+      loadPhotos();
+    } catch (err) {
+      $('uerr').textContent = err.message;
+      if (err.status === 401) { store.set(null); showUnlocked(false); }
+    }
+    return;
+  }
+  if (del) {
+    if (!confirm(`Delete photo ${del.dataset.label}? This can’t be undone.`)) return;
+    try {
+      await api('/api/photo', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: del.dataset.del }),
+      });
+      $('uok').textContent = 'Photo deleted.';
+      $('uerr').textContent = '';
+      loadPhotos();
+    } catch (err) {
+      $('uerr').textContent = err.message;
+      if (err.status === 401) { store.set(null); showUnlocked(false); }
+    }
+  }
+});
 
 function updateSend() {
   $('send').disabled = !(pending && $('who').value);

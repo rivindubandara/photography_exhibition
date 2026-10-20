@@ -91,6 +91,27 @@ http.createServer(async (req, res) => {
       mock.photos.push(photo);
       return send(res, 200, { ok: true, photo });
     }
+    if (url === '/api/photo') {
+      const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!mock.adminToken || auth !== mock.adminToken) return send(res, 401, { error: 'Unlock admin first.' });
+      const body = JSON.parse(await readBody(req) || '{}');
+      if (req.method === 'PATCH') {
+        const p = mock.photos.find((x) => x.id === body.id);
+        if (!p) return send(res, 404, { error: 'Photo not found.' });
+        if (!String(body.title || '').trim()) return send(res, 400, { error: 'Enter a title.' });
+        p.title = String(body.title).trim().slice(0, 120);
+        return send(res, 200, { ok: true, photo: p });
+      }
+      if (req.method === 'DELETE') {
+        const id = body.id;
+        const i = mock.photos.findIndex((x) => x.id === id);
+        if (i < 0) return send(res, 404, { error: 'Photo not found.' });
+        mock.photos.splice(i, 1);
+        mock.votes = mock.votes.filter((v) => v.photoId !== id);
+        return send(res, 200, { ok: true });
+      }
+      return send(res, 405, { error: 'PATCH or DELETE only' });
+    }
     return send(res, 404, { error: 'not found' });
   }
   if (url.startsWith('/mock/')) {

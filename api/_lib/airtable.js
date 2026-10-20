@@ -215,7 +215,36 @@ async function castVote(voterId, photoId) {
   return { status: 200, ok: true, votes: next, remaining: MAX_VOTES - next, maxVotes: MAX_VOTES };
 }
 
+async function updatePhotoTitle(photoId, title) {
+  if (!/^rec\w{14}$/.test(photoId || '')) {
+    const e = new Error('Bad photo id'); e.status = 400; throw e;
+  }
+  const names = await submitterNames();
+  const j = await at(`${T.photos}/${photoId}?returnFieldsByFieldId=true`, {
+    method: 'PATCH',
+    body: JSON.stringify({ fields: { [F.title]: String(title || '').trim().slice(0, 120) } }),
+  });
+  return mapPhoto(j, names) || { id: photoId, title: String(title || '').trim() };
+}
+
+async function deletePhoto(photoId) {
+  if (!/^rec\w{14}$/.test(photoId || '')) {
+    const e = new Error('Bad photo id'); e.status = 400; throw e;
+  }
+  // Remove vote records that point at this photo first (keeps Votes table clean)
+  const votes = await listAll(T.votes, [F.votePhoto]);
+  const doomed = votes.filter((r) => first(r.fields[F.votePhoto]) === photoId).map((r) => r.id);
+  for (let i = 0; i < doomed.length; i += 10) {
+    const chunk = doomed.slice(i, i + 10);
+    const q = new URLSearchParams();
+    chunk.forEach((id) => q.append('records[]', id));
+    await at(`${T.votes}?${q}`, { method: 'DELETE' });
+  }
+  await at(`${T.photos}/${photoId}`, { method: 'DELETE' });
+  return { ok: true, id: photoId };
+}
+
 module.exports = {
   getPhotos, getVoters, getSubmitters, castVote, checkAdmin, adminToken, MAX_VOTES,
-  createPhotoFromUrl, createPhotoFromUpload, nextPhotoNumber, F, T,
+  createPhotoFromUrl, createPhotoFromUpload, updatePhotoTitle, deletePhoto, nextPhotoNumber, F, T,
 };
