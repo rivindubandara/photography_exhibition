@@ -8,6 +8,7 @@ const T = {
 };
 const F = {
   photoId: 'fldlPt3UbBUfewc0B', title: 'fldHCeGSG2SpiNGrC', image: 'fldtyooTFQcC4Q3A9',
+  blurb: 'fldXFuyBWagwbZLAo',
   photoSubmitter: 'fldQbQCOzjG3iRbpr', photoSubEmail: 'fldUSmC3UTJsWbzg4',
   submitterName: 'fldHwPd9QuSDAOdeD',
   voterName: 'fldhdc938ElDoGNpp', voterEmail: 'fld0hq9Ksv74OUzqb', voterVotes: 'fldy1X9rfiaiOfFiP',
@@ -70,6 +71,7 @@ function mapPhoto(r, names = {}) {
   const submitter = subIds.map((id) => names[id]).filter(Boolean).join(', ');
   return {
     id: r.id, number: f[F.photoId] || '', title: f[F.title] || '',
+    blurb: f[F.blurb] || '',
     submitter,
     thumb: img.thumbnails?.large?.url || img.url, full: img.thumbnails?.full?.url || img.url,
     width: img.width, height: img.height,
@@ -79,7 +81,7 @@ function mapPhoto(r, names = {}) {
 
 async function getPhotos() {
   const [recs, names] = await Promise.all([
-    listAll(T.photos, [F.photoId, F.title, F.image, F.photoSubmitter, F.photoSubEmail]),
+    listAll(T.photos, [F.photoId, F.title, F.blurb, F.image, F.photoSubmitter, F.photoSubEmail]),
     submitterNames(),
   ]);
   return recs.map((r) => mapPhoto(r, names)).filter(Boolean)
@@ -135,22 +137,22 @@ async function getSubmitters() {
 }
 
 /** Create a photo then attach base64 file bytes (≤5 MB). */
-async function createPhotoFromUpload({ title, number, contentType, file, filename, submitterId }) {
+async function createPhotoFromUpload({ title, blurb, number, contentType, file, filename, submitterId }) {
   if (!submitterId || !/^rec\w{14}$/.test(submitterId)) {
     const e = new Error('Choose whose photo this is.');
     e.status = 400;
     throw e;
   }
   const photoId = number || await nextPhotoNumber();
+  const fields = {
+    [F.photoId]: photoId,
+    [F.title]: title || '',
+    [F.photoSubmitter]: [submitterId],
+  };
+  if (blurb) fields[F.blurb] = String(blurb).trim().slice(0, 5000);
   const created = await at(`${T.photos}?returnFieldsByFieldId=true`, {
     method: 'POST',
-    body: JSON.stringify({
-      fields: {
-        [F.photoId]: photoId,
-        [F.title]: title || '',
-        [F.photoSubmitter]: [submitterId],
-      },
-    }),
+    body: JSON.stringify({ fields }),
   });
   const updated = await uploadAttachment(created.id, {
     contentType: contentType || 'image/jpeg',
@@ -159,7 +161,8 @@ async function createPhotoFromUpload({ title, number, contentType, file, filenam
   });
   const names = await submitterNames();
   return mapPhoto(updated, names) || {
-    id: created.id, number: photoId, title: title || '', submitter: names[submitterId] || '',
+    id: created.id, number: photoId, title: title || '', blurb: blurb || '',
+    submitter: names[submitterId] || '',
   };
 }
 
@@ -244,7 +247,25 @@ async function deletePhoto(photoId) {
   return { ok: true, id: photoId };
 }
 
+async function renumberPhotos() {
+  const recs = await listAll(T.photos, [F.photoId, F.title]);
+  recs.sort((a, b) => String(a.fields[F.photoId] || '').localeCompare(String(b.fields[F.photoId] || ''), undefined, { numeric: true }));
+  const changes = [];
+  for (let i = 0; i < recs.length; i++) {
+    const num = String(i + 1).padStart(3, '0');
+    const cur = String(recs[i].fields[F.photoId] || '');
+    if (cur === num) continue;
+    await at(`${T.photos}/${recs[i].id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fields: { [F.photoId]: num } }),
+    });
+    changes.push({ id: recs[i].id, from: cur, to: num, title: recs[i].fields[F.title] || '' });
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return changes;
+}
+
 module.exports = {
   getPhotos, getVoters, getSubmitters, castVote, checkAdmin, adminToken, MAX_VOTES,
-  createPhotoFromUrl, createPhotoFromUpload, updatePhotoTitle, deletePhoto, nextPhotoNumber, F, T,
+  createPhotoFromUrl, createPhotoFromUpload, updatePhotoTitle, deletePhoto, renumberPhotos, nextPhotoNumber, F, T, at,
 };

@@ -76,7 +76,10 @@ dialog::backdrop{background:rgba(43,42,39,.6)}
 #lb{max-width:min(96vw,100%);width:auto;background:var(--ink);padding:0;margin:auto}
 #lb img{max-width:100%;max-height:min(78vh,calc(100dvh - 64px));width:auto;height:auto;display:block;margin:auto}
 #lb .cap{color:var(--sand);padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;font-size:14px}
-#lb .cap span{min-width:0;flex:1;overflow-wrap:anywhere}
+#lb .cap .meta{min-width:0;flex:1;text-align:left;align-items:flex-start;min-height:0;padding:0}
+#lb .cap .meta strong{display:block;font-weight:500;color:var(--cream);margin-bottom:4px;overflow-wrap:anywhere}
+#lb .cap .meta em{display:block;font-style:normal;color:var(--taupe);font-size:13px;margin-bottom:8px}
+#lb .cap .meta p{margin:0;color:var(--sand);font-size:13px;line-height:1.45;overflow-wrap:anywhere;max-height:30vh;overflow:auto}
 #lb button{background:none;border:0;color:var(--cream);min-height:44px;min-width:44px;flex-shrink:0;touch-action:manipulation}
 footer{color:var(--taupe);font-size:13px;padding:40px 0;padding-bottom:max(40px,env(safe-area-inset-bottom))}
 @media (max-width:640px){
@@ -153,7 +156,14 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 
 <dialog id="lb">
   <img id="lbi" alt="">
-  <div class="cap"><span id="lbc"></span><button id="lbx">Close ✕</button></div>
+  <div class="cap">
+    <div class="meta">
+      <strong id="lbt"></strong>
+      <em id="lbs"></em>
+      <p id="lbb" hidden></p>
+    </div>
+    <button id="lbx">Close ✕</button>
+  </div>
 </dialog>
 
 <script>
@@ -261,7 +271,10 @@ $('grid').addEventListener('click', (e) => {
   if (z) {
     const ph = S.photos.find((p) => p.id === z.dataset.zoom);
     $('lbi').src = ph.full;
-    $('lbc').textContent = [ph.number, ph.title, ph.submitter].filter(Boolean).join('  ·  ');
+    $('lbt').textContent = [ph.number && `no. ${ph.number}`, ph.title].filter(Boolean).join('  ·  ');
+    $('lbs').textContent = ph.submitter || '';
+    if (ph.blurb) { $('lbb').hidden = false; $('lbb').textContent = ph.blurb; }
+    else { $('lbb').hidden = true; $('lbb').textContent = ''; }
     $('lb').showModal();
   }
   if (v && !v.disabled) {
