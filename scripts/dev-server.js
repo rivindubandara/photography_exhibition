@@ -117,7 +117,7 @@ http.createServer(async (req, res) => {
   if (url.startsWith('/mock/')) {
     const i = parseInt(url.slice(6), 10);
     res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
-    return res.end(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="${cols[i % 6]}"/><circle cx="${60 + i * 40}" cy="400" r="${140 + i * 8}" fill="#f0ede8" opacity=".35"/><rect x="40" y="40" width="320" height="320" fill="none" stroke="#f0ede8" stroke-opacity=".25" stroke-width="2"/></svg>`);
+    return res.end(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 400"><rect width="320" height="400" fill="${cols[i % 6]}"/><circle cx="${50 + i * 30}" cy="400" r="${120 + i * 8}" fill="#f0ede8" opacity=".35"/><rect x="28" y="36" width="264" height="328" fill="none" stroke="#f0ede8" stroke-opacity=".25" stroke-width="2"/></svg>`);
   }
   const rel = url === '/' ? 'index.html' : url === '/admin' ? 'admin.html' : url;
   const f = path.join(root, rel);
