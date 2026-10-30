@@ -13,6 +13,7 @@
     "import:submissions:apply": "node scripts/mass-import.js --apply"
   },
   "dependencies": {
+    "heic-convert": "^2.1.0",
     "sharp": "^0.35.5"
   }
 }

@@ -10,14 +10,20 @@ try {
   });
 } catch {}
 
-const { renumberPhotos, getPhotos } = require('../api/_lib/airtable');
+const { renumberPhotosAlpha, getPhotos } = require('../api/_lib/airtable');
 
 (async () => {
   const before = await getPhotos();
-  console.log(`Renumbering ${before.length} photos…`);
-  const changes = await renumberPhotos();
-  if (!changes.length) console.log('Already sequential — nothing to change.');
-  else changes.forEach((c) => console.log(`  ${c.from || '(blank)'} → ${c.to}  ${c.title}`));
+  console.log(`Renumbering ${before.length} photos A–Z by author…`);
+  const changes = await renumberPhotosAlpha();
+  console.log(`Assigned ${changes.length} numbers.`);
   const after = await getPhotos();
-  console.log('Now:', after.map((p) => p.number).join(', '));
+  let last = '';
+  for (const p of after) {
+    if (p.submitter !== last) {
+      console.log(`\n${p.submitter || '(none)'}`);
+      last = p.submitter;
+    }
+    console.log(`  ${p.number}  ${p.title}`);
+  }
 })().catch((e) => { console.error(e); process.exit(1); });

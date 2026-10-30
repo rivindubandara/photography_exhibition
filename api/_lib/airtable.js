@@ -250,22 +250,53 @@ async function deletePhoto(photoId) {
 async function renumberPhotos() {
   const recs = await listAll(T.photos, [F.photoId, F.title]);
   recs.sort((a, b) => String(a.fields[F.photoId] || '').localeCompare(String(b.fields[F.photoId] || ''), undefined, { numeric: true }));
+  return assignNumbers(recs);
+}
+
+/** Sort by submitter name A–Z, keep relative order within author, then 001…N. */
+async function renumberPhotosAlpha() {
+  const names = await submitterNames();
+  const recs = await listAll(T.photos, [F.photoId, F.title, F.photoSubmitter]);
+  recs.sort((a, b) => {
+    const sa = (names[first(a.fields[F.photoSubmitter])] || '').toLocaleLowerCase();
+    const sb = (names[first(b.fields[F.photoSubmitter])] || '').toLocaleLowerCase();
+    const byName = sa.localeCompare(sb, undefined, { sensitivity: 'base' });
+    if (byName) return byName;
+    return String(a.fields[F.photoId] || '').localeCompare(String(b.fields[F.photoId] || ''), undefined, { numeric: true });
+  });
+  return assignNumbers(recs, names);
+}
+
+async function assignNumbers(recs, names = {}) {
   const changes = [];
+  // Two-pass: temp numbers then final, avoids unique-field clashes if any
+  for (let i = 0; i < recs.length; i++) {
+    const temp = `T${String(i + 1).padStart(3, '0')}`;
+    await at(`${T.photos}/${recs[i].id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fields: { [F.photoId]: temp } }),
+    });
+    await new Promise((r) => setTimeout(r, 120));
+  }
   for (let i = 0; i < recs.length; i++) {
     const num = String(i + 1).padStart(3, '0');
-    const cur = String(recs[i].fields[F.photoId] || '');
-    if (cur === num) continue;
+    const subId = first(recs[i].fields[F.photoSubmitter]);
     await at(`${T.photos}/${recs[i].id}`, {
       method: 'PATCH',
       body: JSON.stringify({ fields: { [F.photoId]: num } }),
     });
-    changes.push({ id: recs[i].id, from: cur, to: num, title: recs[i].fields[F.title] || '' });
-    await new Promise((r) => setTimeout(r, 150));
+    changes.push({
+      id: recs[i].id, to: num,
+      title: recs[i].fields[F.title] || '',
+      submitter: names[subId] || '',
+    });
+    await new Promise((r) => setTimeout(r, 120));
   }
   return changes;
 }
 
 module.exports = {
   getPhotos, getVoters, getSubmitters, castVote, checkAdmin, adminToken, MAX_VOTES,
-  createPhotoFromUrl, createPhotoFromUpload, updatePhotoTitle, deletePhoto, renumberPhotos, nextPhotoNumber, F, T, at,
+  createPhotoFromUrl, createPhotoFromUpload, updatePhotoTitle, deletePhoto,
+  renumberPhotos, renumberPhotosAlpha, nextPhotoNumber, F, T, at,
 };
