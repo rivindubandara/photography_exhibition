@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/upload.js": { "maxDuration": 60 }
+  },
   "rewrites": [
     { "source": "/admin", "destination": "/admin.html" }
   ]

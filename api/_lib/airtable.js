@@ -267,32 +267,42 @@ async function renumberPhotosAlpha() {
   return assignNumbers(recs, names);
 }
 
-async function assignNumbers(recs, names = {}) {
-  const changes = [];
-  // Two-pass: temp numbers then final, avoids unique-field clashes if any
-  for (let i = 0; i < recs.length; i++) {
-    const temp = `T${String(i + 1).padStart(3, '0')}`;
-    await at(`${T.photos}/${recs[i].id}`, {
+/** Patch Photo IDs in batches of 10 (Airtable limit). */
+async function patchPhotoIds(updates) {
+  for (let i = 0; i < updates.length; i += 10) {
+    const chunk = updates.slice(i, i + 10);
+    await at(T.photos, {
       method: 'PATCH',
-      body: JSON.stringify({ fields: { [F.photoId]: temp } }),
+      body: JSON.stringify({
+        records: chunk.map(({ id, photoId }) => ({
+          id,
+          fields: { [F.photoId]: photoId },
+        })),
+      }),
     });
-    await new Promise((r) => setTimeout(r, 120));
   }
-  for (let i = 0; i < recs.length; i++) {
-    const num = String(i + 1).padStart(3, '0');
+}
+
+async function assignNumbers(recs, names = {}) {
+  // Two-pass: temp numbers then final, avoids unique-field clashes if any
+  await patchPhotoIds(recs.map((r, i) => ({
+    id: r.id,
+    photoId: `T${String(i + 1).padStart(3, '0')}`,
+  })));
+  const finals = recs.map((r, i) => ({
+    id: r.id,
+    photoId: String(i + 1).padStart(3, '0'),
+  }));
+  await patchPhotoIds(finals);
+  return finals.map(({ id, photoId }, i) => {
     const subId = first(recs[i].fields[F.photoSubmitter]);
-    await at(`${T.photos}/${recs[i].id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ fields: { [F.photoId]: num } }),
-    });
-    changes.push({
-      id: recs[i].id, to: num,
+    return {
+      id,
+      to: photoId,
       title: recs[i].fields[F.title] || '',
       submitter: names[subId] || '',
-    });
-    await new Promise((r) => setTimeout(r, 120));
-  }
-  return changes;
+    };
+  });
 }
 
 module.exports = {

@@ -1,4 +1,4 @@
-const { checkAdmin, createPhotoFromUpload } = require('./_lib/airtable');
+const { checkAdmin, createPhotoFromUpload, renumberPhotosAlpha } = require('./_lib/airtable');
 
 const MAX_BYTES = 4.5 * 1024 * 1024; // stay under typical serverless body limits
 const OK_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -27,6 +27,10 @@ module.exports = async (req, res) => {
       file: file.replace(/^data:[^;]+;base64,/, ''),
       filename: String(filename || 'photo.jpg').replace(/[^\w.\-]+/g, '_').slice(0, 80),
     });
+    // Re-sort gallery A–Z by submitter so the new photo sits with its author
+    const changes = await renumberPhotosAlpha();
+    const placed = changes.find((c) => c.id === photo.id);
+    if (placed) photo.number = placed.to;
     res.status(200).json({ ok: true, photo });
   } catch (e) {
     res.status(e.status && e.status < 500 ? e.status : 500).json({ error: e.message });

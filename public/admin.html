@@ -506,7 +506,7 @@ $('clear').onclick = clearForm;
 $('send').onclick = async () => {
   if (!pending) return;
   if (!$('who').value) { $('uerr').textContent = 'Choose whose photo this is.'; return; }
-  const btn = $('send'); btn.disabled = true; $('uerr').textContent = ''; $('uok').textContent = '';
+  const btn = $('send'); btn.disabled = true; $('uerr').textContent = ''; $('uok').textContent = 'Uploading & sorting A–Z…';
   try {
     const framed = exportFramed();
     if (!framed?.base64) throw new Error('Could not frame the image.');
@@ -526,7 +526,7 @@ $('send').onclick = async () => {
       }),
     });
     const who = j.photo?.submitter || selectedName();
-    $('uok').textContent = `Uploaded ${j.photo?.number || ''} for ${who} — it’s in Airtable and the gallery.`;
+    $('uok').textContent = `Uploaded #${j.photo?.number || ''} for ${who} — gallery re-sorted A–Z by name.`;
     clearForm();
     loadPhotos();
   } catch (e) {
