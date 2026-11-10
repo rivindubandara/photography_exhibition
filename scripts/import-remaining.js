@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const sharp = require('sharp');
+const heicConvert = require('heic-convert');
 
 const ROOT = path.join(__dirname, '..');
 try {
@@ -25,21 +26,30 @@ const {
 const SUB = 'C:\\Users\\RivinduB\\Desktop\\Submission';
 const APPLY = process.argv.includes('--apply');
 
+async function loadImageInput(file) {
+  const ext = path.extname(file).toLowerCase();
+  if (ext !== '.heic' && ext !== '.heif') return file;
+  const input = await fs.promises.readFile(file);
+  const jpeg = await heicConvert({ buffer: input, format: 'JPEG', quality: 0.92 });
+  return Buffer.from(jpeg);
+}
+
 async function prepareImage(file) {
   const maxBytes = 4.5 * 1024 * 1024;
   const targetW = 1280, targetH = 1600;
+  const input = await loadImageInput(file);
   let quality = 88;
-  let buf = await sharp(file, { failOn: 'none' }).rotate().resize({
+  let buf = await sharp(input, { failOn: 'none' }).rotate().resize({
     width: targetW, height: targetH, fit: 'cover', position: 'centre',
   }).jpeg({ quality, mozjpeg: true }).toBuffer();
   while (buf.length > maxBytes && quality > 55) {
     quality -= 8;
-    buf = await sharp(file, { failOn: 'none' }).rotate().resize({
+    buf = await sharp(input, { failOn: 'none' }).rotate().resize({
       width: targetW, height: targetH, fit: 'cover', position: 'centre',
     }).jpeg({ quality, mozjpeg: true }).toBuffer();
   }
   if (buf.length > maxBytes) {
-    buf = await sharp(file, { failOn: 'none' }).rotate().resize({
+    buf = await sharp(input, { failOn: 'none' }).rotate().resize({
       width: 960, height: 1200, fit: 'cover', position: 'centre',
     }).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
   }

@@ -10,6 +10,7 @@ const F = {
   photoId: 'fldlPt3UbBUfewc0B', title: 'fldHCeGSG2SpiNGrC', image: 'fldtyooTFQcC4Q3A9',
   blurb: 'fldXFuyBWagwbZLAo',
   photoSubmitter: 'fldQbQCOzjG3iRbpr', photoSubEmail: 'fldUSmC3UTJsWbzg4',
+  photoVotes: 'fldsf6A7BgO7AhMM8', validVotes: 'fldrVVruyZUn8HpYv',
   submitterName: 'fldHwPd9QuSDAOdeD',
   voterName: 'fldhdc938ElDoGNpp', voterEmail: 'fld0hq9Ksv74OUzqb', voterVotes: 'fldy1X9rfiaiOfFiP',
   voteVoter: 'fldUV2H8hye4Zrbkm', votePhoto: 'fldSDc8ayUbmTB3k3',
@@ -69,10 +70,16 @@ function mapPhoto(r, names = {}) {
   if (!img) return null;
   const subIds = f[F.photoSubmitter] || [];
   const submitter = subIds.map((id) => names[id]).filter(Boolean).join(', ');
+  const valid = f[F.validVotes];
+  const linked = f[F.photoVotes];
+  const voteCount = typeof valid === 'number'
+    ? valid
+    : (Array.isArray(linked) ? linked.length : (Number(valid) || 0));
   return {
     id: r.id, number: f[F.photoId] || '', title: f[F.title] || '',
     blurb: f[F.blurb] || '',
     submitter,
+    voteCount,
     thumb: img.thumbnails?.large?.url || img.url, full: img.thumbnails?.full?.url || img.url,
     width: img.width, height: img.height,
     ownerKeys: (f[F.photoSubEmail] || []).map(key),
@@ -81,7 +88,7 @@ function mapPhoto(r, names = {}) {
 
 async function getPhotos() {
   const [recs, names] = await Promise.all([
-    listAll(T.photos, [F.photoId, F.title, F.blurb, F.image, F.photoSubmitter, F.photoSubEmail]),
+    listAll(T.photos, [F.photoId, F.title, F.blurb, F.image, F.photoSubmitter, F.photoSubEmail, F.photoVotes, F.validVotes]),
     submitterNames(),
   ]);
   return recs.map((r) => mapPhoto(r, names)).filter(Boolean)
@@ -144,9 +151,10 @@ async function createPhotoFromUpload({ title, blurb, number, contentType, file, 
     throw e;
   }
   const photoId = number || await nextPhotoNumber();
+  const cleanTitle = String(title || '').replace(/^title\s*[:\-–]\s*/i, '').trim();
   const fields = {
     [F.photoId]: photoId,
-    [F.title]: title || '',
+    [F.title]: cleanTitle,
     [F.photoSubmitter]: [submitterId],
   };
   if (blurb) fields[F.blurb] = String(blurb).trim().slice(0, 5000);
@@ -161,7 +169,7 @@ async function createPhotoFromUpload({ title, blurb, number, contentType, file, 
   });
   const names = await submitterNames();
   return mapPhoto(updated, names) || {
-    id: created.id, number: photoId, title: title || '', blurb: blurb || '',
+    id: created.id, number: photoId, title: cleanTitle, blurb: blurb || '',
     submitter: names[submitterId] || '',
   };
 }

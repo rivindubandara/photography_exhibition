@@ -68,6 +68,8 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .thumb img{width:100%;aspect-ratio:4/5;object-fit:cover;display:block}
 .thumb .info{font-size:12px;color:var(--olive);text-align:center;line-height:1.35;overflow-wrap:anywhere}
 .thumb .info b{display:block;font:200 15px/1.2 var(--serif);font-weight:200;color:var(--espresso);margin:4px 0 2px}
+.thumb .votes{display:inline-block;margin-top:6px;padding:3px 8px;border:1px solid var(--sand);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--espresso)}
+.thumb .votes strong{font-weight:500}
 .thumb .actions{display:flex;gap:6px}
 .thumb .actions button{flex:1;margin:0;padding:8px 6px;min-height:40px;font-size:12px}
 .btn.danger{background:transparent;color:var(--clay);border-color:var(--clay)}
@@ -322,20 +324,26 @@ async function boot() {
 async function loadPhotos() {
   try {
     const j = await api('/api/photos');
-    $('thumbs').innerHTML = (j.photos || []).map((p) =>
-      `<div class="thumb" data-id="${esc(p.id)}">
+    const photos = j.photos || [];
+    const totalVotes = photos.reduce((n, p) => n + (p.voteCount || 0), 0);
+    $('thumbs').innerHTML = (photos.length
+      ? `<p class="lead" style="margin-bottom:12px">${photos.length} photos · ${totalVotes} total vote${totalVotes === 1 ? '' : 's'}</p>`
+      : '') + photos.map((p) => {
+      const votes = p.voteCount || 0;
+      return `<div class="thumb" data-id="${esc(p.id)}">
         <img loading="lazy" src="${esc(p.thumb)}" alt="">
         <div class="info">
           <span>no. ${esc(p.number)}</span>
           <b>${esc(p.title || 'Untitled')}</b>
           ${p.submitter ? `<span>${esc(p.submitter)}</span>` : ''}
+          <span class="votes"><strong>${votes}</strong> vote${votes === 1 ? '' : 's'}</span>
         </div>
         <div class="actions">
           <button type="button" class="btn ghost" data-rename="${esc(p.id)}" data-title="${esc(p.title || '')}">Rename</button>
           <button type="button" class="btn danger" data-del="${esc(p.id)}" data-label="${esc(p.number)} ${esc(p.title || '')}">Delete</button>
         </div>
-      </div>`
-    ).join('') || '<p class="lead">No photos yet.</p>';
+      </div>`;
+    }).join('') || '<p class="lead">No photos yet.</p>';
   } catch (e) {
     $('thumbs').innerHTML = `<p class="err">${esc(e.message)}</p>`;
   }

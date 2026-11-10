@@ -29,11 +29,15 @@ header .lede p{margin-top:14px}
 header .lede p:first-child{margin-top:0}
 .wrap{max-width:1200px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-left)) 0 max(16px,env(safe-area-inset-right))}
 .bar{position:sticky;top:0;z-index:5;background:var(--cream);border-bottom:1px solid var(--sand);padding-top:env(safe-area-inset-top,0)}
-.bar .wrap{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;min-height:48px}
-.who{font-size:14px;color:var(--olive);min-width:0;flex:1}
+.bar .wrap{display:flex;flex-direction:column;gap:10px;padding:12px 0}
+.bar-top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;width:100%;min-width:0}
+.who{font-size:14px;color:var(--olive);min-width:0;flex:1 1 auto;overflow-wrap:anywhere;word-break:break-word}
 .who b{font-weight:500;color:var(--espresso)}
 .link{background:none;border:0;border-bottom:1px solid currentColor;padding:0;font-size:14px;color:var(--clay);min-height:44px;display:inline-flex;align-items:center}
-.status{font-size:14px;color:var(--olive);flex-shrink:0;text-align:right}
+.status{font-size:14px;color:var(--olive);flex:0 1 auto;text-align:right;max-width:46%;overflow-wrap:anywhere;word-break:break-word}
+.search{width:100%;padding:12px 14px;border:1px solid var(--sand);background:var(--white);font:inherit;font-size:16px;color:var(--espresso);border-radius:0}
+.search::placeholder{color:var(--taupe)}
+.search:focus{outline:1px solid var(--taupe);outline-offset:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:36px 28px;margin-top:36px;padding:8px 4px 24px;align-items:start}
 .card{display:flex;flex-direction:column;gap:14px;background:transparent;border:0;padding:0;transform:rotate(var(--r,0deg));transition:transform .25s ease;max-width:100%}
 .card:nth-child(5n+1){--r:-1.6deg}.card:nth-child(5n+2){--r:1.3deg}.card:nth-child(5n+3){--r:-.7deg}.card:nth-child(5n+4){--r:1.8deg}.card:nth-child(5n+5){--r:-1.1deg}
@@ -90,8 +94,11 @@ header .lede{font-size:15px;margin-top:14px}
 header .lede p{margin-top:12px}
 header .arc{width:220px;height:220px;right:-80px;top:-80px}
 header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
-.bar .wrap{flex-wrap:wrap;align-items:flex-start;gap:6px 12px;padding:10px 0}
-.who,.status{font-size:13px;line-height:1.35}
+.bar .wrap{gap:8px;padding:10px 0}
+.bar-top{flex-direction:column;align-items:stretch;gap:4px}
+.who,.status{font-size:13px;line-height:1.35;max-width:none;text-align:left;width:100%}
+.status{text-align:left;color:var(--taupe)}
+.search{padding:11px 12px}
 .grid{grid-template-columns:1fr;gap:28px;margin-top:24px;padding:4px 8px 16px;max-width:360px;margin-left:auto;margin-right:auto}
 .card{--r:0deg!important}
 .card:nth-child(odd){--r:-.8deg!important}
@@ -123,8 +130,11 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 </header>
 
 <div class="bar"><div class="wrap">
-  <div class="who" id="who"></div>
-  <div class="status" id="count"></div>
+  <div class="bar-top">
+    <div class="who" id="who"></div>
+    <div class="status" id="count"></div>
+  </div>
+  <input class="search" id="search" type="search" placeholder="Search by author, title, or number" autocomplete="off" enterkeyhint="search">
 </div></div>
 
 <main class="wrap">
@@ -169,7 +179,7 @@ header .arc.b{width:140px;height:140px;right:-40px;top:-40px}
 <script>
 const $ = (id) => document.getElementById(id);
 const MAX_VOTES = 3;
-const S = { photos: [], voters: [], me: null, pending: null };
+const S = { photos: [], voters: [], me: null, pending: null, query: '' };
 const store = {
   get(k){ try { return localStorage.getItem(k); } catch { return null; } },
   set(k,v){ try { v==null ? localStorage.removeItem(k) : localStorage.setItem(k,v); } catch {} },
@@ -189,8 +199,14 @@ async function api(path, opts) {
 
 function hydrateMe(v) {
   if (!v) return null;
-  const local = store.getVotes(v.id);
-  const votedPhotoIds = [...new Set([...(v.votedPhotoIds || []), ...local])];
+  const serverIds = v.votedPhotoIds || [];
+  let local = store.getVotes(v.id);
+  // Airtable is source of truth — drop stale browser cache after votes are cleared/deleted
+  if (serverIds.length < local.length) {
+    local = serverIds;
+    store.setVotes(v.id, local);
+  }
+  const votedPhotoIds = [...new Set([...serverIds, ...local])];
   const votes = Math.max(v.votes || 0, votedPhotoIds.length);
   return {
     ...v,
@@ -221,6 +237,16 @@ function voteStatus() {
   return `${MAX_VOTES} votes to cast`;
 }
 
+function matchesQuery(ph, q) {
+  if (!q) return true;
+  const hay = [ph.number, ph.title, ph.submitter].map((s) => String(s || '').toLowerCase()).join(' ');
+  return q.split(/\s+/).filter(Boolean).every((term) => hay.includes(term));
+}
+
+function visiblePhotos() {
+  return S.photos.filter((ph) => matchesQuery(ph, S.query));
+}
+
 function render() {
   const me = S.me;
   $('who').innerHTML = me
@@ -228,8 +254,12 @@ function render() {
     : `<button class="link" id="chg">Choose your name</button>`;
   $('chg').onclick = () => $('pick').showModal();
   $('count').textContent = voteStatus();
-  $('empty').hidden = S.photos.length > 0;
-  $('grid').innerHTML = S.photos.map((ph) => {
+  const list = visiblePhotos();
+  $('empty').hidden = list.length > 0;
+  $('empty').textContent = S.photos.length && !list.length
+    ? 'No photos match that search.'
+    : 'No photos yet.';
+  $('grid').innerHTML = list.map((ph) => {
     const own = isOwn(ph), picked = hasVotedFor(ph);
     const done = !!(me && me.voted);
     let label = 'Vote', dis = !me || done || own || picked;
@@ -340,6 +370,11 @@ $('names').onclick = (e) => {
   const b = e.target.closest('[data-id]'); if (!b) return;
   S.me = hydrateMe(S.voters.find((v) => v.id === b.dataset.id));
   store.set('nt-voter', S.me.id); $('pick').close(); render();
+};
+
+$('search').oninput = (e) => {
+  S.query = String(e.target.value || '').trim().toLowerCase();
+  render();
 };
 
 addEventListener('resize', () => { if (S.photos.length) fitCaptions(); });

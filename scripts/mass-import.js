@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const sharp = require('sharp');
+const heicConvert = require('heic-convert');
 
 const ROOT = path.join(__dirname, '..');
 try {
@@ -23,7 +24,7 @@ try {
   });
 } catch {}
 
-const { getSubmitters, getPhotos, createPhotoFromUpload, nextPhotoNumber } = require('../api/_lib/airtable');
+const { getSubmitters, getPhotos, createPhotoFromUpload, nextPhotoNumber, renumberPhotosAlpha } = require('../api/_lib/airtable');
 
 const APPLY = process.argv.includes('--apply');
 const dirFlag = process.argv.indexOf('--dir');
@@ -35,7 +36,8 @@ const SUBMISSION_DIR = dirFlag >= 0
   ? process.argv[dirFlag + 1]
   : 'C:\\Users\\RivinduB\\Desktop\\Submission';
 
-const IMG_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tif', '.tiff', '.heic']);
+const IMG_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.tif', '.tiff', '.heic', '.heif']);
+const HEIC_EXT = new Set(['.heic', '.heif']);
 const SKIP_DIRS = new Set(['_name']);
 
 /** Folder name → Airtable Submitters.Name when they don't match exactly. */
@@ -107,6 +109,18 @@ function takeAfterLabel(lines, i, labelRe) {
   return { value: '', next: i + 1 };
 }
 
+function cleanTitle(title) {
+  return String(title || '')
+    .replace(/^2026 Photography Exhibition\s*/i, '')
+    .replace(/^title\s*[:\-–]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function titleKey(submitter, title) {
+  return `${String(submitter || '').toLowerCase()}|${cleanTitle(title).toLowerCase()}`;
+}
+
 function parseDoc(text) {
   // Compact one-line style: TitleSubject: … Blurb: … Device:
   const compact = text.match(
@@ -114,7 +128,7 @@ function parseDoc(text) {
   );
   if (compact && !/written submission/i.test(compact[1])) {
     return {
-      title: compact[1].replace(/^2026 Photography Exhibition\s*/i, '').trim(),
+      title: cleanTitle(compact[1]),
       subject: compact[2].replace(/\s+/g, ' ').trim(),
       blurb: compact[3].replace(/\s+/g, ' ').trim(),
     };
@@ -161,7 +175,7 @@ function parseDoc(text) {
   }
 
   let blurb = blurbParts.join(' ').replace(/\s+/g, ' ').trim().replace(/^\)\s*/, '');
-  title = title.trim();
+  title = cleanTitle(title);
   // Reject unfilled template leftovers
   if (/^(title|subject(\s*\(.*\))?)$/i.test(title)) title = '';
   if (/^(blurb|subject(\s*\(.*\))?)$/i.test(blurb)) blurb = '';
@@ -232,7 +246,8 @@ function matchSubmitter(folderName, submitters) {
 
 /** Pair images with docs/txt in the same folder; also handle multi-photo root docs. */
 function pairEntries(personDir) {
-  const files = walk(personDir).filter((f) => !/[\\/]archive[\\/]/i.test(f));
+  // Skip Archive / _Archive / .trash style folders so retired takes don't re-import
+  const files = walk(personDir).filter((f) => !/[\\/]_?archive[\\/]/i.test(f) && !/[\\/]\./.test(f.replace(personDir, '')));
   const docs = files.filter(isDoc);
   const images = files.filter(isImage);
   const txts = files.filter(isTxt);
@@ -343,30 +358,38 @@ function pairEntries(personDir) {
   return pairs;
 }
 
+/** Sharp’s prebuilt Windows binaries can’t decode HEVC HEIC — convert first. */
+async function loadImageInput(file) {
+  const ext = path.extname(file).toLowerCase();
+  if (!HEIC_EXT.has(ext)) return file;
+  const input = await fs.promises.readFile(file);
+  const jpeg = await heicConvert({ buffer: input, format: 'JPEG', quality: 0.92 });
+  return Buffer.from(jpeg);
+}
+
 async function prepareImage(file) {
   const maxBytes = 4.5 * 1024 * 1024;
-  let img = sharp(file, { failOn: 'none' }).rotate();
-  const meta = await img.metadata();
+  const input = await loadImageInput(file);
+  const meta = await sharp(input, { failOn: 'none' }).metadata();
   // Fit into 4:5 cover crop, max edge 1600
   const targetW = 1280, targetH = 1600;
-  let pipeline = sharp(file, { failOn: 'none' }).rotate().resize({
+  let quality = 88;
+  let buf = await sharp(input, { failOn: 'none' }).rotate().resize({
     width: targetW,
     height: targetH,
     fit: 'cover',
     position: 'centre',
-  }).jpeg({ quality: 88, mozjpeg: true });
+  }).jpeg({ quality, mozjpeg: true }).toBuffer();
 
-  let buf = await pipeline.toBuffer();
-  let quality = 88;
   while (buf.length > maxBytes && quality > 55) {
     quality -= 8;
-    buf = await sharp(file, { failOn: 'none' }).rotate().resize({
+    buf = await sharp(input, { failOn: 'none' }).rotate().resize({
       width: targetW, height: targetH, fit: 'cover', position: 'centre',
     }).jpeg({ quality, mozjpeg: true }).toBuffer();
   }
   if (buf.length > maxBytes) {
     // shrink further
-    buf = await sharp(file, { failOn: 'none' }).rotate().resize({
+    buf = await sharp(input, { failOn: 'none' }).rotate().resize({
       width: 960, height: 1200, fit: 'cover', position: 'centre',
     }).jpeg({ quality: 80, mozjpeg: true }).toBuffer();
   }
@@ -392,7 +415,7 @@ async function main() {
   }
 
   const [submitters, existing] = await Promise.all([getSubmitters(), getPhotos()]);
-  const existingKeys = new Set(existing.map((p) => `${(p.submitter || '').toLowerCase()}|${(p.title || '').toLowerCase()}`));
+  const existingKeys = new Set(existing.map((p) => titleKey(p.submitter, p.title)));
 
   const people = fs.readdirSync(SUBMISSION_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory() && !SKIP_DIRS.has(d.name.toLowerCase()))
@@ -411,8 +434,8 @@ async function main() {
     }
     const pairs = pairEntries(path.join(SUBMISSION_DIR, person));
     for (const p of pairs) {
-      const title = p.parsed?.title || '';
-      const dup = title && existingKeys.has(`${sub.name.toLowerCase()}|${title.toLowerCase()}`);
+      const title = cleanTitle(p.parsed?.title || '');
+      const dup = title && existingKeys.has(titleKey(sub.name, title));
       plan.push({
         folder: person,
         submitterId: sub.id,
@@ -495,6 +518,11 @@ async function main() {
   }
 
   console.log(`\nDone. uploaded=${uploaded} failed=${failed}`);
+  if (uploaded > 0) {
+    process.stdout.write('Sorting gallery A–Z by author… ');
+    const changes = await renumberPhotosAlpha();
+    console.log(`done (${changes.length} photos).`);
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
