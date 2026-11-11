@@ -70,6 +70,18 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .thumb .info b{display:block;font:200 15px/1.2 var(--serif);font-weight:200;color:var(--espresso);margin:4px 0 2px}
 .thumb .votes{display:inline-block;margin-top:6px;padding:3px 8px;border:1px solid var(--sand);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--espresso)}
 .thumb .votes strong{font-weight:500}
+.voters{margin-top:36px}
+.voters h3{font:200 clamp(24px,6vw,28px)/1 var(--serif);margin-bottom:8px}
+.voters .summary{font-size:14px;color:var(--olive);margin-bottom:16px}
+.voter-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:16px}
+.voter-col{background:var(--white);border:1px solid var(--sand);padding:14px 14px 8px}
+.voter-col h4{font:500 12px/1.2 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--taupe);margin-bottom:10px}
+.voter-col ul{list-style:none;padding:0;margin:0;max-height:320px;overflow:auto}
+.voter-col li{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px solid var(--sand);font-size:14px}
+.voter-col li:last-child{border-bottom:0}
+.voter-col li span{min-width:0;overflow-wrap:anywhere}
+.voter-col li small{flex-shrink:0;color:var(--olive);font-size:12px}
+.voter-col.empty-col li{color:var(--taupe);border:0;padding:4px 0}
 .thumb .actions{display:flex;gap:6px}
 .thumb .actions button{flex:1;margin:0;padding:8px 6px;min-height:40px;font-size:12px}
 .btn.danger{background:transparent;color:var(--clay);border-color:var(--clay)}
@@ -150,6 +162,12 @@ header img{height:32px;margin-bottom:28px}
     </div>
     <div class="err" id="uerr"></div>
     <div class="ok" id="uok"></div>
+
+    <div class="voters" id="voters">
+      <h3>voting <em>status</em></h3>
+      <p class="summary" id="voterSummary">Loading voters…</p>
+      <div class="voter-cols" id="voterCols"></div>
+    </div>
 
     <div class="list">
       <h3>in the gallery</h3>
@@ -307,7 +325,7 @@ async function unlock() {
     store.set(j.token);
     $('pw').value = '';
     showUnlocked(true);
-    await Promise.all([loadSubmitters(), loadPhotos()]);
+    await Promise.all([loadSubmitters(), loadPhotos(), loadVoters()]);
   } catch (e) { $('gerr').textContent = e.message; }
 }
 
@@ -317,8 +335,47 @@ async function boot() {
   try {
     await api('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     showUnlocked(true);
-    await Promise.all([loadSubmitters(), loadPhotos()]);
+    await Promise.all([loadSubmitters(), loadPhotos(), loadVoters()]);
   } catch { store.set(null); showUnlocked(false); }
+}
+
+function voterStatus(v) {
+  const votes = v.votes || 0;
+  const remaining = v.remaining != null ? v.remaining : Math.max(0, 3 - votes);
+  if (v.voted || remaining <= 0) return 'done';
+  if (votes > 0) return 'partial';
+  return 'none';
+}
+
+async function loadVoters() {
+  try {
+    const j = await api('/api/voters');
+    const voters = (j.voters || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+    const none = voters.filter((v) => voterStatus(v) === 'none');
+    const partial = voters.filter((v) => voterStatus(v) === 'partial');
+    const done = voters.filter((v) => voterStatus(v) === 'done');
+    const cast = voters.reduce((n, v) => n + (v.votes || 0), 0);
+    $('voterSummary').textContent =
+      `${voters.length} people · ${none.length} not voted · ${partial.length} with votes left · ${done.length} finished · ${cast} votes cast`;
+
+    const col = (title, list, labelFn) => {
+      const items = list.length
+        ? list.map((v) => `<li><span>${esc(v.name)}</span><small>${esc(labelFn(v))}</small></li>`).join('')
+        : '<li>None</li>';
+      return `<div class="voter-col ${list.length ? '' : 'empty-col'}"><h4>${esc(title)} (${list.length})</h4><ul>${items}</ul></div>`;
+    };
+    $('voterCols').innerHTML = [
+      col('Not voted', none, () => '0 of 3'),
+      col('Votes left', partial, (v) => {
+        const left = v.remaining != null ? v.remaining : Math.max(0, 3 - (v.votes || 0));
+        return `${v.votes || 0} cast · ${left} left`;
+      }),
+      col('Finished', done, (v) => `${v.votes || 3} / 3`),
+    ].join('');
+  } catch (e) {
+    $('voterSummary').textContent = 'Could not load voters: ' + e.message;
+    $('voterCols').innerHTML = '';
+  }
 }
 
 async function loadPhotos() {
