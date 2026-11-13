@@ -395,7 +395,7 @@ async function loadPhotos() {
     if (withVotes) {
       $('resultsLead').textContent += ` · ${withVotes} photo${withVotes === 1 ? '' : 's'} have votes`;
     }
-    // Competition ranking: same vote count → same place; next place skips (1,2,2,4).
+    // Dense ranking: same vote count → same place; next place is consecutive (1,2,2,3).
     const placeCounts = {};
     for (const p of photos) {
       const v = p.voteCount || 0;
@@ -408,7 +408,7 @@ async function loadPhotos() {
       const v = p.voteCount || 0;
       if (v !== lastVotes) {
         placeByVotes[v] = nextPlace;
-        nextPlace += placeCounts[v];
+        nextPlace += 1;
         lastVotes = v;
       }
     }
