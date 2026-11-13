@@ -395,8 +395,28 @@ async function loadPhotos() {
     if (withVotes) {
       $('resultsLead').textContent += ` · ${withVotes} photo${withVotes === 1 ? '' : 's'} have votes`;
     }
-    $('thumbs').innerHTML = photos.map((p, i) => {
+    // Competition ranking: same vote count → same place; next place skips (1,2,2,4).
+    const placeCounts = {};
+    for (const p of photos) {
+      const v = p.voteCount || 0;
+      placeCounts[v] = (placeCounts[v] || 0) + 1;
+    }
+    let nextPlace = 1;
+    const placeByVotes = {};
+    let lastVotes = null;
+    for (const p of photos) {
+      const v = p.voteCount || 0;
+      if (v !== lastVotes) {
+        placeByVotes[v] = nextPlace;
+        nextPlace += placeCounts[v];
+        lastVotes = v;
+      }
+    }
+    $('thumbs').innerHTML = photos.map((p) => {
       const votes = p.voteCount || 0;
+      const place = placeByVotes[votes];
+      const tied = (placeCounts[votes] || 0) > 1;
+      const rankLabel = tied ? `#${place} · tied` : `#${place}`;
       const voters = p.voters || [];
       const voterHtml = voters.length
         ? `<div class="voters-list"><strong>Voted by</strong>${voters.map((n) => `<span>${esc(n)}</span>`).join('')}</div>`
@@ -404,7 +424,7 @@ async function loadPhotos() {
       return `<div class="thumb" data-id="${esc(p.id)}">
         <img loading="lazy" src="${esc(p.thumb)}" alt="">
         <div class="info">
-          <span class="rank">#${i + 1}</span>
+          <span class="rank">${rankLabel}</span>
           <span>no. ${esc(p.number)}</span>
           <b>${esc(p.title || 'Untitled')}</b>
           ${p.submitter ? `<span>${esc(p.submitter)}</span>` : ''}
