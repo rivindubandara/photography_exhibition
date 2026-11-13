@@ -186,6 +186,47 @@ async function votesByVoter() {
   return map;
 }
 
+/** Map photo record id → sorted voter display names. */
+async function votesByPhoto() {
+  const [voteRecs, voterRecs] = await Promise.all([
+    listAll(T.votes, [F.voteVoter, F.votePhoto]),
+    listAll(T.voters, [F.voterName]),
+  ]);
+  const voterNames = {};
+  for (const r of voterRecs) voterNames[r.id] = r.fields[F.voterName] || '';
+  const map = {};
+  for (const r of voteRecs) {
+    const photoId = first(r.fields[F.votePhoto]);
+    const voterId = first(r.fields[F.voteVoter]);
+    if (!photoId || !voterId) continue;
+    const name = voterNames[voterId] || 'Unknown';
+    (map[photoId] || (map[photoId] = [])).push(name);
+  }
+  for (const id of Object.keys(map)) {
+    map[id] = [...new Set(map[id])].sort((a, b) => a.localeCompare(b));
+  }
+  return map;
+}
+
+/** Photos with voter names, sorted by vote count (highest first). Admin use. */
+async function getPhotosWithVotes() {
+  const [photos, byPhoto] = await Promise.all([getPhotos(), votesByPhoto()]);
+  return photos
+    .map((p) => {
+      const voters = byPhoto[p.id] || [];
+      return {
+        ...p,
+        voters,
+        voteCount: Math.max(p.voteCount || 0, voters.length),
+      };
+    })
+    .sort((a, b) => {
+      const byVotes = (b.voteCount || 0) - (a.voteCount || 0);
+      if (byVotes) return byVotes;
+      return String(a.number).localeCompare(String(b.number), undefined, { numeric: true });
+    });
+}
+
 async function getVoters() {
   const [recs, byVoter] = await Promise.all([
     listAll(T.voters, [F.voterName, F.voterEmail, F.voterVotes]),
@@ -314,7 +355,7 @@ async function assignNumbers(recs, names = {}) {
 }
 
 module.exports = {
-  getPhotos, getVoters, getSubmitters, castVote, checkAdmin, adminToken, MAX_VOTES,
+  getPhotos, getPhotosWithVotes, getVoters, getSubmitters, castVote, checkAdmin, adminToken, MAX_VOTES,
   createPhotoFromUrl, createPhotoFromUpload, updatePhotoTitle, deletePhoto,
   renumberPhotos, renumberPhotosAlpha, nextPhotoNumber, F, T, at,
 };
